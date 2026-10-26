@@ -2,3 +2,4 @@ albums.json
 node_modules/
 .superpowers/
 dev/
+.claude/

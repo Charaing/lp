@@ -40,3 +40,8 @@ test('zero total does not divide by zero', () => {
   assert.equal(timeToRadius(0, 0), 0.96);
   assert.deepEqual(locate([], 3), { index: 0, offset: 0 });
 });
+
+test('locate with all-unknown durations starts at the first track', () => {
+  assert.deepEqual(locate([0, 0, 0], 0), { index: 0, offset: 0 });
+  assert.deepEqual(locate([0, 0, 0], 12), { index: 0, offset: 0 });
+});

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LP 턴테이블</title>
+  <meta name="description" content="앨범마다 다른 LP를 턴테이블에 올려 듣는 곳">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23161210'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23ffb04a'/%3E%3Ccircle cx='16' cy='16' r='1.4' fill='%23161210'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Michroma&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="room">
+    <section class="deck" id="deck" aria-label="턴테이블"></section>
+    <aside class="crate" aria-labelledby="crate-title">
+      <h1 class="brand">lp</h1>
+      <h2 class="crate-title" id="crate-title">레코드를 골라 턴테이블에 올리세요</h2>
+      <div id="crate"></div>
+    </aside>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

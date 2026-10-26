@@ -24,7 +24,7 @@ export function locate(durations, t) {
     if (d > 0 && time < acc + d) return { index: i, offset: time - acc };
     acc += d;
   }
-  if (durations.length === 0) return { index: 0, offset: 0 };
+  if (acc === 0) return { index: 0, offset: 0 }; // nothing measured yet
   const last = durations.length - 1;
   return { index: last, offset: durations[last] };
 }
