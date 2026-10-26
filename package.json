@@ -9,5 +9,8 @@
     "build": "node scripts/build-manifest.mjs",
     "demo": "node scripts/make-demo.mjs",
     "serve": "npx --yes http-server -c-1 -p 8080 ."
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

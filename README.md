@@ -55,7 +55,7 @@ albums/
 
 ## 내 컴퓨터에서 보기
 
-Node 20 이상이 필요해요.
+Node 22 이상이 필요해요.
 
 ```bash
 npm run build
