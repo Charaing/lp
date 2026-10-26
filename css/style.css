@@ -288,6 +288,9 @@ button { font: inherit; color: inherit; }
     align-content: start;
     gap: 22px;
     padding: 16px;
+    /* from the home screen the page runs under the status bar and the Dynamic Island */
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .plinth { border-radius: 14px; }
   /* On phones the plinth is too small to share: title and hint go under it. */

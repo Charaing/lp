@@ -2,6 +2,7 @@ import { Player } from './player.js';
 import { createShelf } from './shelf.js';
 import { createTurntable } from './turntable.js';
 import { loadCover, designFor } from './vinyl.js';
+import { connectMediaSession } from './now-playing.js';
 
 const toastEl = document.getElementById('toast');
 let toastTimer = 0;
@@ -27,6 +28,7 @@ const player = new Player();
 player.addEventListener('error', (e) => toast(`재생할 수 없는 트랙: ${e.detail.title}`));
 
 const turntable = createTurntable(document.getElementById('deck'), player);
+connectMediaSession(player, turntable);
 const albums = await loadAlbums();
 const shelf = createShelf(document.getElementById('crate'), albums, (album) => {
   shelf.setActive(album.id);

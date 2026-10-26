@@ -344,6 +344,29 @@ export function createTurntable(root, player) {
       draw(album, cover, design, durations);
       updateText();
     },
+    // Lock screen and Dynamic Island buttons. They can arrive while the page is hidden and
+    // animation frames are paused, so they set the deck's state and drive the player directly.
+    remotePlay() {
+      if (!s.album) return;
+      if (!s.needleDown || s.ended) {
+        s.tween = null;
+        s.angle = angleForRadius(GROOVE.outer);
+        setNeedle(true);
+        s.ended = false;
+        player.seek(0);
+        setHint('');
+      }
+      setMotor(true);
+      s.speed = DEG_PER_SEC[s.rpm];
+      s.audible = true;
+      player.play();
+    },
+    remotePause() {
+      setMotor(false);
+      s.audible = false;
+      player.pause();
+    },
+    skip,
     eject() {
       s.mountToken++;
       s.album = null;
