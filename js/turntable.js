@@ -294,7 +294,20 @@ export function createTurntable(root, player) {
     arm.setAttribute('aria-valuetext', s.needleDown ? `${track?.title ?? ''} ${fmt(offset)}` : '거치대에 있음');
   }
 
-  const draw = (album, cover, design, durations) => renderVinyl(canvas, album, design, cover, durations);
+  // Draw the record at the size it is shown, so grooves don't alias into stripes on phones.
+  let lastDraw = null;
+  function draw(album, cover, design, durations) {
+    lastDraw = [album, cover, design, durations];
+    const shown = disc.offsetWidth * (window.devicePixelRatio || 1);
+    const px = shown > 0 ? Math.min(1024, Math.max(256, Math.round(shown))) : 1024;
+    if (canvas.width !== px) canvas.width = canvas.height = px;
+    renderVinyl(canvas, album, design, cover, durations);
+  }
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (lastDraw && s.album === lastDraw[0]) draw(...lastDraw); }, 200);
+  });
 
   return {
     async mount(album) {

@@ -1,6 +1,7 @@
 // Draws each album's record onto a canvas. Same album id → same record.
 import { hashSeed, mulberry32, extractPalette, pickStyle, hexToRgb, rgbToHsl, toHex } from './palette.js';
 import { GROOVE, gapRadii } from './timeline.js';
+import { noise3, fbm3 } from './noise.js';
 
 const LABEL = 0.33;
 const BASIC = ['solid', 'translucent', 'marble', 'splatter'];
@@ -75,55 +76,89 @@ function drawCoverCircle(ctx, cover, cx, cy, r) {
   ctx.restore();
 }
 
-function texture(ctx, d, R, rand) {
-  if (d.style === 'marble') {
-    ctx.save();
-    ctx.filter = `blur(${R * 0.012}px)`;
-    // Wavy partial rings, like pigment dragged around by the press.
-    for (let i = 0; i < 22; i++) {
-      ctx.beginPath();
-      const r0 = R * (0.3 + rand() * 0.65), amp = R * (0.02 + rand() * 0.08);
-      const k = 2 + Math.floor(rand() * 4), phase = rand() * Math.PI * 2;
-      const start = rand() * Math.PI * 2, span = Math.PI * (0.6 + rand() * 1.4);
-      for (let s = 0; s <= 64; s++) {
-        const a = start + (span * s) / 64;
-        const r = r0 + amp * Math.sin(k * a + phase);
-        if (s === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.strokeStyle = i % 3 === 0 ? shade(d.base, 0.25) : d.accent;
-      ctx.globalAlpha = 0.25 + rand() * 0.45;
-      ctx.lineWidth = R * (0.015 + rand() * 0.07);
-      ctx.lineCap = 'round';
-      ctx.stroke();
-    }
-    ctx.restore();
-  } else if (d.style === 'splatter') {
-    const n = 40 + Math.floor(rand() * 41);
-    for (let i = 0; i < n; i++) {
-      const a = rand() * Math.PI * 2, r = R * Math.sqrt(rand());
-      const x = Math.cos(a) * r, y = Math.sin(a) * r, size = R * (0.008 + rand() ** 3 * 0.06);
-      ctx.fillStyle = rand() < 0.75 ? d.accent : shade(d.accent, 0.25);
-      ctx.globalAlpha = 0.75 + rand() * 0.25;
-      ctx.beginPath();
-      ctx.ellipse(x, y, size, size * (0.6 + rand() * 0.4), rand() * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-      for (let k = 0; k < 3; k++) { // satellite droplets
-        ctx.beginPath();
-        ctx.arc(x + (rand() - 0.5) * size * 5, y + (rand() - 0.5) * size * 5, size * rand() * 0.35, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.globalAlpha = 1;
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// Marbled vinyl: two pigments folded into each other and dragged around by the press,
+// so the colour pockets stretch along the circumference instead of looking sprayed on.
+const marbleCache = new Map();
+
+function marble(ctx, d, R) {
+  const size = Math.max(64, Math.min(512, Math.round(R * 2)));
+  const key = `${d.seed}:${size}:${d.base}:${d.accent}`;
+  let off = marbleCache.get(key);
+  if (!off) {
+    off = marbleLayer(d, size);
+    marbleCache.clear(); // only the record on the platter is ever redrawn
+    marbleCache.set(key, off);
   }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(off, -R, -R, R * 2, R * 2);
+}
+
+function marbleLayer(d, size) {
+  const off = document.createElement('canvas');
+  off.width = off.height = size;
+  const octx = off.getContext('2d');
+  const img = octx.createImageData(size, size);
+  const field = fbm3(noise3(d.seed), 4);
+  const warp = fbm3(noise3(d.seed ^ 0x5bd1e995), 3);
+  const base = hexToRgb(d.base);
+  const accent = hexToRgb(d.accent).map((c, k) => c + (base[k] - c) * 0.2); // pigments bleed into each other
+  const light = base.map((c) => c + (255 - c) * 0.35);
+  const h = size / 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x + 0.5 - h) / h, dy = (y + 0.5 - h) / h;
+      const r = Math.hypot(dx, dy);
+      if (r > 1) continue;
+      const a = Math.atan2(dy, dx) + 1.6 * r + 2.4 * (warp(dx * 1.4, dy * 1.4, 3.7) - 0.5);
+      const v = field(Math.cos(a) * 1.1, Math.sin(a) * 1.1, r * 3.2);
+      const tAccent = smooth(0.53, 0.6, v);
+      const tLight = (1 - smooth(0.38, 0.45, v)) * 0.55;
+      const i = (y * size + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const mid = base[c] + (light[c] - base[c]) * tLight;
+        img.data[i + c] = mid + (accent[c] - mid) * tAccent;
+      }
+      img.data[i + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  return off;
+}
+
+// Splatter vinyl: small, crisp flecks of pigment pressed flat into the record.
+function splatter(ctx, d, R, rand) {
+  const n = 70 + Math.floor(rand() * 50);
+  for (let i = 0; i < n; i++) {
+    const a = rand() * Math.PI * 2, r = R * (0.3 + 0.68 * Math.sqrt(rand()));
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    const size = R * (rand() < 0.85 ? 0.004 + rand() * 0.012 : 0.016 + rand() * 0.02);
+    ctx.fillStyle = rand() < 0.7 ? d.accent : shade(d.accent, 0.18);
+    ctx.beginPath();
+    const pts = 7 + Math.floor(rand() * 5), rot = rand() * Math.PI * 2;
+    for (let k = 0; k < pts; k++) {
+      const t = rot + (k / pts) * Math.PI * 2, rr = size * (0.7 + rand() * 0.45);
+      if (k === 0) ctx.moveTo(x + Math.cos(t) * rr, y + Math.sin(t) * rr);
+      else ctx.lineTo(x + Math.cos(t) * rr, y + Math.sin(t) * rr);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function texture(ctx, d, R, rand) {
+  if (d.style === 'marble') marble(ctx, d, R);
+  else if (d.style === 'splatter') splatter(ctx, d, R, rand);
 }
 
 function grooves(ctx, R, rand, durations) {
   const inner = GROOVE.inner * R, outer = GROOVE.outer * R;
-  const step = Math.max(1.2, R / 260);
-  ctx.lineWidth = step * 0.5;
+  // Roughly one groove line per device pixel; fainter lines read as a fine sheen, not stripes.
+  const step = Math.max(1, R / 420);
+  ctx.lineWidth = step * 0.6;
   for (let r = inner; r < outer; r += step) {
-    ctx.strokeStyle = rand() < 0.5 ? `rgba(0,0,0,${0.10 + rand() * 0.10})` : `rgba(255,255,255,${0.02 + rand() * 0.04})`;
+    ctx.strokeStyle = rand() < 0.55 ? `rgba(0,0,0,${0.05 + rand() * 0.06})` : `rgba(255,255,255,${0.012 + rand() * 0.025})`;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -132,12 +167,12 @@ function grooves(ctx, R, rand, durations) {
   const gaps = durations.length > 1 && durations.every((d) => d > 0) ? gapRadii(durations)
     : Array.from({ length: Math.max(0, durations.length - 1) }, (_, i) => GROOVE.outer - ((i + 1) / durations.length) * (GROOVE.outer - GROOVE.inner));
   for (const g of gaps) {
-    ctx.lineWidth = R * 0.012;
-    ctx.strokeStyle = 'rgba(0,0,0,0.38)';
+    ctx.lineWidth = R * 0.008;
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.arc(0, 0, g * R, 0, Math.PI * 2); ctx.stroke();
-    ctx.lineWidth = R * 0.003;
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.beginPath(); ctx.arc(0, 0, g * R + R * 0.006, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = R * 0.0025;
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.beginPath(); ctx.arc(0, 0, g * R + R * 0.0045, 0, Math.PI * 2); ctx.stroke();
   }
   // lead-in edge and smooth run-out
   ctx.lineWidth = R * 0.03;
