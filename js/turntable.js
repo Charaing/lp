@@ -79,7 +79,6 @@ export function createTurntable(root, player) {
       <div class="sheen"></div>
       <div class="spindle"></div>
     </div>
-    <p class="deck-hint"></p>
     <div class="controls">
       <div class="speed" role="group" aria-label="회전 속도">
         <button type="button" data-rpm="33" aria-pressed="true">33</button>
@@ -89,20 +88,22 @@ export function createTurntable(root, player) {
         <span class="pilot" aria-hidden="true"></span>
         <button type="button" class="startstop" aria-pressed="false">시작</button>
       </div>
-    </div>
-    <div class="nowplaying" aria-live="off">
-      <p class="np-title"></p>
-      <p class="np-artist"></p>
-      <p class="np-track"></p>
     </div>`;
   const { root: armLayer, arm, grab } = buildArm();
   plinth.append(armLayer);
-  root.append(plinth);
+  // Title and hint live beside the plinth so phones can stack them under the turntable.
+  const info = document.createElement('div');
+  info.className = 'nowplaying';
+  info.setAttribute('aria-live', 'off');
+  info.innerHTML = '<p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p>';
+  const hintEl = document.createElement('p');
+  hintEl.className = 'deck-hint';
+  root.append(plinth, info, hintEl);
 
   const q = (s) => plinth.querySelector(s);
   const platter = q('.platter'), disc = q('.disc'), canvas = q('canvas');
-  const hint = q('.deck-hint'), startBtn = q('.startstop');
-  const npTitle = q('.np-title'), npArtist = q('.np-artist'), npTrack = q('.np-track');
+  const hint = hintEl, startBtn = q('.startstop');
+  const npTitle = info.querySelector('.np-title'), npArtist = info.querySelector('.np-artist'), npTrack = info.querySelector('.np-track');
   const shadow = armLayer.querySelector('#armShadowOffset');
 
   // the focusable handle for keyboard and screen readers

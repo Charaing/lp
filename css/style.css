@@ -47,7 +47,7 @@ button { font: inherit; color: inherit; }
   margin: 0 auto;
 }
 
-.deck { grid-area: deck; }
+.deck { grid-area: deck; position: relative; }
 .crate { grid-area: crate; align-self: stretch; display: flex; flex-direction: column; min-width: 0; }
 
 /* ---------- the plinth ---------- */
@@ -133,13 +133,17 @@ button { font: inherit; color: inherit; }
   font-size: clamp(10px, 1.05vw, 13px); color: var(--cream-dim);
 }
 .deck-hint[hidden] { display: none; }
+.nowplaying, .deck-hint { pointer-events: none; }
 
 /* start/stop and speed, set into the plinth like a 70s deck */
 .controls {
   position: absolute; right: 3%; bottom: 6%;
+  z-index: 2; /* above the tonearm's grab area on narrow screens */
+  pointer-events: none; /* only the buttons take taps; the gaps let the arm through */
   display: flex; flex-direction: column; align-items: flex-end; gap: clamp(10px, 1.4vw, 18px);
 }
 .power { display: flex; align-items: center; gap: clamp(8px, 1vw, 12px); }
+.controls button { pointer-events: auto; }
 
 .startstop, .speed button {
   cursor: pointer;
@@ -286,9 +290,13 @@ button { font: inherit; color: inherit; }
     padding: 16px;
   }
   .plinth { border-radius: 14px; }
-  .deck { padding-bottom: 26px; }
-  .deck-hint { top: calc(100% + 8px); bottom: auto; left: 0; max-width: 100%; font-size: 12px; }
-  .nowplaying { top: 24%; width: 18%; }
+  /* On phones the plinth is too small to share: title and hint go under it. */
+  .nowplaying { position: static; width: auto; margin-top: 14px; text-align: left; }
+  .np-title { font-size: 28px; }
+  .np-artist { font-size: 11px; margin-top: .2em !important; }
+  .np-track { font-size: 11px; margin-top: .5em !important; }
+  .nowplaying:has(.np-title:empty) { display: none; }
+  .deck-hint { position: static; max-width: none; margin-top: 8px; font-size: 12px; }
   .crate-list {
     display: flex; overflow-x: auto; gap: 16px; padding-bottom: 12px;
     scroll-snap-type: x mandatory;
