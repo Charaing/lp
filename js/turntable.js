@@ -1,17 +1,10 @@
-// The deck: spinning platter, draggable tonearm, start/stop and 33/45.
-import { GROOVE, radiusToTime, timeToRadius, startOf, locate, trackStartAt } from './timeline.js';
-import { ARM, PLINTH, DISC, PIVOT, ARM_LENGTH, angleForRadius, radiusForAngle, clampAngle } from './arm.js';
+// The 2D deck: spinning platter, draggable tonearm, start/stop and 33/45, drawn with SVG and a canvas.
+// It is also the fallback when the 3D deck can't run. Behaviour lives in deck-core.js.
+import { PLINTH, DISC, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
 import { loadCover, designFor, renderVinyl } from './vinyl.js';
+import { createDeckCore, bindDeckKeys } from './deck-core.js';
 
-const DEG_PER_SEC = { 33: 200, 45: 270 };
-const NEEDLE_DROP_MS = 350;
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const RUNOUT = 0.37;
-
-const fmt = (s) => {
-  const t = Math.max(0, Math.floor(s || 0));
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-};
 
 const pct = (v, of) => `${(v / of) * 100}%`;
 
@@ -114,66 +107,15 @@ export function createTurntable(root, player) {
   arm.removeAttribute('aria-hidden');
   armLayer.removeAttribute('aria-hidden');
 
-  const s = {
-    album: null, motorOn: false, rpm: 33, speed: 0, rotation: 0,
-    angle: ARM.rest, needleDown: false, dragging: false, ended: false,
-    audible: false, tween: null, dropTimer: 0, mountToken: 0, pendingR: null,
-  };
-
-  const setHint = (text) => { hint.textContent = text; hint.hidden = !text; };
-  setHint('레코드를 골라 플래터에 올리세요');
-
-  function setMotor(on) {
-    s.motorOn = on;
-    startBtn.textContent = on ? '정지' : '시작';
-    startBtn.setAttribute('aria-pressed', String(on));
-    plinth.classList.toggle('motor-on', on);
-  }
-
-  function setRpm(rpm) {
-    s.rpm = rpm;
-    for (const b of plinth.querySelectorAll('.speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === rpm));
-  }
-
-  function setNeedle(down) {
-    s.needleDown = down;
-    shadow.setAttribute('dx', down ? 4 : 10);
-    shadow.setAttribute('dy', down ? 5 : 14);
-  }
-
-  function tweenTo(target, ms = 600) {
-    return new Promise((resolve) => {
-      s.tween = { from: s.angle, to: target, start: performance.now(), ms, resolve };
-    });
-  }
-
-  // The needle always starts the track it lands on from the top.
-  function seekToTrackUnder(r) {
-    player.seek(trackStartAt(player.durations, radiusToTime(r, player.total)));
-  }
-
-  function dropNeedleAt(r) {
-    clearTimeout(s.dropTimer);
-    s.dropTimer = setTimeout(() => {
-      setNeedle(true);
-      s.ended = false;
-      // Track lengths may still be loading; seek again by position once they arrive.
-      s.pendingR = player.total > 0 ? null : r;
-      seekToTrackUnder(r);
-      setHint('');
-    }, NEEDLE_DROP_MS);
-  }
-
-  function liftNeedle() {
-    clearTimeout(s.dropTimer);
-    s.pendingR = null;
-    setNeedle(false);
-  }
-
-  async function returnToRest() {
-    liftNeedle();
-    await tweenTo(ARM.rest);
-  }
+  const core = createDeckCore(player, {
+    setHint(text) { hint.textContent = text; hint.hidden = !text; },
+    async loadArt(album) {
+      const [cover] = await Promise.all([loadCover(album.cover), document.fonts.ready]);
+      return { cover, design: designFor(album, cover) };
+    },
+    drawVinyl: (...args) => draw(...args),
+  });
+  const s = core.state;
 
   // ---- pointer dragging ----
   function pointerAngle(e) {
@@ -186,114 +128,51 @@ export function createTurntable(root, player) {
   grab.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     try { grab.setPointerCapture(e.pointerId); } catch { /* pointer already released */ }
-    s.dragging = true;
-    s.tween = null;
-    liftNeedle();
-    plinth.classList.add('dragging');
+    core.startDrag();
   });
-  grab.addEventListener('pointermove', (e) => {
-    if (s.dragging) s.angle = pointerAngle(e);
-  });
-  const endDrag = () => {
-    if (!s.dragging) return;
-    s.dragging = false;
-    plinth.classList.remove('dragging');
-    const r = radiusForAngle(s.angle);
-    if (s.album && r <= 1) dropNeedleAt(r);
-    else returnToRest();
-  };
-  grab.addEventListener('pointerup', endDrag);
-  grab.addEventListener('pointercancel', endDrag);
+  grab.addEventListener('pointermove', (e) => core.dragTo(pointerAngle(e)));
+  grab.addEventListener('pointerup', () => core.endDrag());
+  grab.addEventListener('pointercancel', () => core.endDrag());
 
   // ---- buttons and keys ----
-  startBtn.addEventListener('click', () => setMotor(!s.motorOn));
-  for (const b of plinth.querySelectorAll('.speed button')) b.addEventListener('click', () => setRpm(Number(b.dataset.rpm)));
-
-  async function togglePlay() {
-    if (!s.album) return;
-    if (!s.needleDown) {
-      setMotor(true);
-      await tweenTo(angleForRadius(GROOVE.outer));
-      dropNeedleAt(GROOVE.outer);
-      return;
-    }
-    setMotor(!s.motorOn);
-  }
-
-  function skip(delta) {
-    if (!s.album || !s.needleDown) return;
-    const durations = player.durations;
-    const { index, offset } = locate(durations, player.time);
-    let target = index + delta;
-    if (delta < 0 && offset > 3) target = index; // restart the current track first
-    target = Math.max(0, Math.min(durations.length - 1, target));
-    s.ended = false;
-    player.seek(startOf(durations, target));
-  }
-
-  document.addEventListener('keydown', (e) => {
-    if (e.target.closest?.('button, input, textarea, select, a')) return;
-    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-    else if (e.key === 'ArrowRight') { e.preventDefault(); skip(1); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-1); }
-  });
-
-  player.addEventListener('durations', () => {
-    if (s.pendingR != null && s.needleDown) seekToTrackUnder(s.pendingR);
-    s.pendingR = null;
-  });
-
-  player.addEventListener('ended', () => {
-    if (!s.needleDown) return;
-    s.ended = true;
-    s.audible = false;
-    s.angle = angleForRadius(RUNOUT);
-  });
+  startBtn.addEventListener('click', () => core.toggleMotor());
+  for (const b of plinth.querySelectorAll('.speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
+  let active = true;
+  bindDeckKeys(core, () => active);
 
   // ---- frame loop ----
   let last = performance.now();
   let lastText = 0;
   function frame(now) {
-    const dt = Math.min(0.1, (now - last) / 1000);
+    core.tick((now - last) / 1000, now);
     last = now;
-    const target = s.motorOn ? DEG_PER_SEC[s.rpm] : 0;
-    s.speed += (target - s.speed) * (1 - Math.exp(-dt / 0.25));
-    if (Math.abs(s.speed) < 0.05 && !s.motorOn) s.speed = 0;
-    s.rotation = (s.rotation + s.speed * dt) % 360;
     disc.style.transform = `rotate(${s.rotation}deg)`;
     platter.style.setProperty('--spin', `${s.rotation}deg`);
-
-    if (s.tween) {
-      const k = Math.min(1, (now - s.tween.start) / s.tween.ms);
-      const e = 1 - (1 - k) ** 3;
-      s.angle = s.tween.from + (s.tween.to - s.tween.from) * e;
-      if (k === 1) { const done = s.tween.resolve; s.tween = null; done(); }
-    } else if (s.needleDown && !s.dragging && !s.ended && player.total > 0) {
-      s.angle = angleForRadius(timeToRadius(player.time, player.total));
-    }
     arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
-
-    const shouldPlay = s.album && s.needleDown && s.motorOn && !s.dragging && !s.ended && s.speed > target * 0.6;
-    if (shouldPlay && !s.audible) { s.audible = true; player.play(); }
-    else if (!shouldPlay && s.audible) { s.audible = false; player.pause(); }
-
+    shadow.setAttribute('dx', 4 + 6 * Math.max(0, s.lift));
+    shadow.setAttribute('dy', 5 + 9 * Math.max(0, s.lift));
+    plinth.classList.toggle('dragging', s.dragging);
     if (now - lastText > 250) { lastText = now; updateText(); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
   function updateText() {
-    if (!s.album) return;
-    const total = player.total;
-    const { index, offset } = locate(player.durations, player.time);
-    const track = s.album.tracks[index];
-    const where = `${index + 1}/${s.album.tracks.length}  ${track?.title ?? ''}`;
-    if (s.ended) { npTrack.textContent = `끝까지 들었어요  ${fmt(total)}`; return; }
-    npTrack.textContent = s.needleDown ? `${where}   ${fmt(offset)} / ${fmt(player.durations[index])}` : `${s.album.tracks.length}곡  ${fmt(total)}`;
-    arm.setAttribute('aria-valuemax', String(Math.round(total)));
-    arm.setAttribute('aria-valuenow', String(Math.round(s.needleDown ? player.time : 0)));
-    arm.setAttribute('aria-valuetext', s.needleDown ? `${track?.title ?? ''} ${fmt(offset)}` : '거치대에 있음');
+    startBtn.textContent = s.motorOn ? '정지' : '시작';
+    startBtn.setAttribute('aria-pressed', String(s.motorOn));
+    plinth.classList.toggle('motor-on', s.motorOn);
+    for (const b of plinth.querySelectorAll('.speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === s.rpm));
+    plinth.classList.toggle('loaded', s.phase !== 'empty');
+    plinth.classList.toggle('swapping', s.phase === 'swapping');
+    const i = core.info();
+    npTitle.textContent = i.title;
+    npArtist.textContent = i.artist;
+    npTrack.textContent = i.line;
+    arm.setAttribute('aria-valuemax', String(i.ariaMax));
+    arm.setAttribute('aria-valuenow', String(i.ariaNow));
+    arm.setAttribute('aria-valuetext', i.ariaText);
   }
+  core.onChange(updateText);
 
   // Draw the record at the size it is shown, so grooves don't alias into stripes on phones.
   let lastDraw = null;
@@ -311,68 +190,11 @@ export function createTurntable(root, player) {
   });
 
   return {
-    async mount(album) {
-      const token = ++s.mountToken;
-      s.ended = false;
-      s.audible = false;
-      player.pause();
-      if (s.album) {
-        returnToRest();
-        plinth.classList.add('swapping');
-        await new Promise((r) => setTimeout(r, 380));
-      } else {
-        liftNeedle();
-      }
-      if (token !== s.mountToken) return;
-      s.album = album;
-      // Start loading audio before the cover so an early needle drop seeks this album.
-      const loading = player.load(album);
-      s.audible = false; // load() paused the player
-      if (s.needleDown) returnToRest(); // dropped on the outgoing record during the swap
-      const [cover] = await Promise.all([loadCover(album.cover), document.fonts.ready]);
-      if (token !== s.mountToken) return;
-      const design = designFor(album, cover);
-      setRpm(album.rpm === 45 ? 45 : 33);
-      draw(album, cover, design, album.tracks.map(() => 0));
-      plinth.classList.remove('swapping');
-      plinth.classList.add('loaded');
-      npTitle.textContent = album.title;
-      npArtist.textContent = album.artist || '';
-      setHint('톤암을 레코드 위로 끌어다 놓으세요');
-      const durations = await loading;
-      if (token !== s.mountToken) return;
-      draw(album, cover, design, durations);
-      updateText();
-    },
-    // Lock screen and Dynamic Island buttons. They can arrive while the page is hidden and
-    // animation frames are paused, so they set the deck's state and drive the player directly.
-    remotePlay() {
-      if (!s.album) return;
-      if (!s.needleDown || s.ended) {
-        s.tween = null;
-        s.angle = angleForRadius(GROOVE.outer);
-        setNeedle(true);
-        s.ended = false;
-        player.seek(0);
-        setHint('');
-      }
-      setMotor(true);
-      s.speed = DEG_PER_SEC[s.rpm];
-      s.audible = true;
-      player.play();
-    },
-    remotePause() {
-      setMotor(false);
-      s.audible = false;
-      player.pause();
-    },
-    skip,
-    eject() {
-      s.mountToken++;
-      s.album = null;
-      player.pause();
-      returnToRest();
-      plinth.classList.remove('loaded');
-    },
+    mount: core.mount,
+    eject: core.eject,
+    remotePlay: core.remotePlay,
+    remotePause: core.remotePause,
+    skip: core.skip,
+    setVisible(on) { active = on; },
   };
 }

@@ -10,7 +10,7 @@ function measure(src) {
   return new Promise((resolve) => {
     const a = new Audio();
     a.preload = 'metadata';
-    const done = (d) => { clearTimeout(timer); a.removeAttribute('src'); resolve(d); };
+    const done = (d) => { clearTimeout(timer); a.removeAttribute('src'); a.load(); resolve(d); }; // load() with no src frees the connection
     const timer = setTimeout(() => done(null), 15000);
     a.addEventListener('loadedmetadata', () => done(Number.isFinite(a.duration) ? a.duration : null), { once: true });
     a.addEventListener('error', () => done(null), { once: true });

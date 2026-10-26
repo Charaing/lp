@@ -14,23 +14,8 @@ test('nextPlayableIndex returns -1 after the last track', () => {
   assert.equal(nextPlayableIndex(new Set(), 2, 3), -1);
 });
 
-// Minimal stand-in for HTMLAudioElement: metadata/error events fire on the next tick
-// unless `hold` is set, in which case the test fires them with fire().
-class FakeAudio extends EventTarget {
-  static hold = false;
-  constructor() { super(); this.paused = true; this.currentTime = 0; this.duration = NaN; this._src = null; }
-  set src(v) {
-    this._src = v; this.currentTime = 0;
-    if (!FakeAudio.hold) setTimeout(() => this.fire(v.includes('bad') ? 'error' : 'loadedmetadata'), 0);
-  }
-  get src() { return this._src; }
-  getAttribute(n) { return n === 'src' ? this._src : null; }
-  removeAttribute(n) { if (n === 'src') this._src = null; }
-  fire(type) { if (type === 'loadedmetadata') this.duration = 10; this.dispatchEvent(new Event(type)); }
-  play() { this.paused = false; return Promise.resolve(); }
-  pause() { this.paused = true; }
-}
-globalThis.Audio = FakeAudio;
+import { FakeAudio, installFakeAudio } from './helpers/fake-audio.mjs';
+installFakeAudio();
 const { Player } = await import('../js/player.js');
 const album = (...names) => ({ id: 'a', tracks: names.map((n) => ({ title: n, src: n })) });
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -82,4 +67,17 @@ test('seeking to the end of the album ends it instead of replaying the last trac
   await tick();
   assert.equal(ended, true);
   assert.equal(p.audio.paused, true);
+});
+
+test('loading the next album after the run-out measures its tracks', async () => {
+  FakeAudio.hold = false;
+  const p = new Player();
+  await p.load(album('ok-1', 'ok-2'));
+  await tick();
+  p.play();
+  p.seek(p.total); // run-out
+  await tick();
+  const durations = await p.load(album('ok-a', 'ok-b', 'ok-c'));
+  assert.deepEqual(durations, [10, 10, 10]);
+  assert.equal(p.total, 30);
 });
