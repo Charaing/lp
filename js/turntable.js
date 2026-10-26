@@ -238,6 +238,7 @@ export function createTurntable(root, player) {
   });
 
   player.addEventListener('ended', () => {
+    if (!s.needleDown) return;
     s.ended = true;
     s.audible = false;
     s.angle = angleForRadius(RUNOUT);
@@ -304,6 +305,10 @@ export function createTurntable(root, player) {
       }
       if (token !== s.mountToken) return;
       s.album = album;
+      // Start loading audio before the cover so an early needle drop seeks this album.
+      const loading = player.load(album);
+      s.audible = false; // load() paused the player
+      if (s.needleDown) returnToRest(); // dropped on the outgoing record during the swap
       const [cover] = await Promise.all([loadCover(album.cover), document.fonts.ready]);
       if (token !== s.mountToken) return;
       const design = designFor(album, cover);
@@ -314,7 +319,7 @@ export function createTurntable(root, player) {
       npTitle.textContent = album.title;
       npArtist.textContent = album.artist || '';
       setHint('톤암을 레코드 위로 끌어다 놓으세요');
-      const durations = await player.load(album);
+      const durations = await loading;
       if (token !== s.mountToken) return;
       draw(album, cover, design, durations);
       updateText();

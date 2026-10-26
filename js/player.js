@@ -29,13 +29,26 @@ export class Player extends EventTarget {
     this._index = 0;
     this._want = false; // the needle is down and the platter is spinning
     this._loadToken = 0;
+    this._pendingOffset = null; // where to jump once the current src has metadata
     this.audio.addEventListener('ended', () => this._advance());
+    this.audio.addEventListener('loadedmetadata', () => {
+      if (this._pendingOffset == null) return;
+      this.audio.currentTime = this._pendingOffset;
+      this._pendingOffset = null;
+      if (this._want) this.audio.play().catch(() => {});
+    });
     this.audio.addEventListener('error', () => {
       if (!this.album || !this.audio.getAttribute('src')) return;
-      this.failed.add(this._index);
-      this._emit('error', { index: this._index, title: this.album.tracks[this._index].title });
-      this._advance();
+      this._pendingOffset = null;
+      this._fail(this._index);
+      if (this._want) this._advance();
     });
+  }
+
+  _fail(index) {
+    if (this.failed.has(index)) return;
+    this.failed.add(index);
+    this._emit('error', { index, title: this.album.tracks[index].title });
   }
 
   _emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
@@ -47,13 +60,12 @@ export class Player extends EventTarget {
     this.failed = new Set();
     this.durations = album.tracks.map(() => 0);
     this._index = 0;
+    this._pendingOffset = null;
     this.audio.src = album.tracks[0].src;
     const measured = await Promise.all(album.tracks.map((t) => measure(t.src)));
     if (token !== this._loadToken) return this.durations;
-    this.durations = measured.map((d, i) => {
-      if (d == null) this.failed.add(i);
-      return d ?? 0;
-    });
+    this.durations = measured.map((d) => d ?? 0);
+    measured.forEach((d, i) => { if (d == null) this._fail(i); });
     this._emit('durations', { durations: this.durations });
     return this.durations;
   }
@@ -74,11 +86,10 @@ export class Player extends EventTarget {
     const changed = index !== this._index;
     this._index = index;
     if (changed || this.audio.getAttribute('src') !== src) {
+      this._pendingOffset = offset;
       this.audio.src = src;
-      this.audio.addEventListener('loadedmetadata', () => {
-        this.audio.currentTime = offset;
-        if (this._want) this.audio.play().catch(() => {});
-      }, { once: true });
+    } else if (this._pendingOffset != null) {
+      this._pendingOffset = offset; // metadata still loading; the newest seek wins
     } else {
       this.audio.currentTime = offset;
     }
