@@ -37,3 +37,11 @@ export function gapRadii(durations) {
   const total = durations.reduce((a, d) => a + d, 0);
   return durations.slice(1).map((_, i) => timeToRadius(startOf(durations, i + 1), total));
 }
+
+// Where a needle dropped at time t starts playing: the beginning of that track.
+// Past the last track (the run-out) stays at the end, so the record runs out.
+export function trackStartAt(durations, t) {
+  const total = durations.reduce((a, d) => a + d, 0);
+  if (total > 0 && t >= total) return total;
+  return startOf(durations, locate(durations, t).index);
+}

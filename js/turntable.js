@@ -1,5 +1,5 @@
 // The deck: spinning platter, draggable tonearm, start/stop and 33/45.
-import { GROOVE, radiusToTime, timeToRadius, startOf, locate } from './timeline.js';
+import { GROOVE, radiusToTime, timeToRadius, startOf, locate, trackStartAt } from './timeline.js';
 import { ARM, PLINTH, DISC, PIVOT, ARM_LENGTH, angleForRadius, radiusForAngle, clampAngle } from './arm.js';
 import { loadCover, designFor, renderVinyl } from './vinyl.js';
 
@@ -146,6 +146,11 @@ export function createTurntable(root, player) {
     });
   }
 
+  // The needle always starts the track it lands on from the top.
+  function seekToTrackUnder(r) {
+    player.seek(trackStartAt(player.durations, radiusToTime(r, player.total)));
+  }
+
   function dropNeedleAt(r) {
     clearTimeout(s.dropTimer);
     s.dropTimer = setTimeout(() => {
@@ -153,7 +158,7 @@ export function createTurntable(root, player) {
       s.ended = false;
       // Track lengths may still be loading; seek again by position once they arrive.
       s.pendingR = player.total > 0 ? null : r;
-      player.seek(radiusToTime(r, player.total));
+      seekToTrackUnder(r);
       setHint('');
     }, NEEDLE_DROP_MS);
   }
@@ -233,7 +238,7 @@ export function createTurntable(root, player) {
   });
 
   player.addEventListener('durations', () => {
-    if (s.pendingR != null && s.needleDown) player.seek(radiusToTime(s.pendingR, player.total));
+    if (s.pendingR != null && s.needleDown) seekToTrackUnder(s.pendingR);
     s.pendingR = null;
   });
 
@@ -282,6 +287,7 @@ export function createTurntable(root, player) {
     const { index, offset } = locate(player.durations, player.time);
     const track = s.album.tracks[index];
     const where = `${index + 1}/${s.album.tracks.length}  ${track?.title ?? ''}`;
+    if (s.ended) { npTrack.textContent = `끝까지 들었어요  ${fmt(total)}`; return; }
     npTrack.textContent = s.needleDown ? `${where}   ${fmt(offset)} / ${fmt(player.durations[index])}` : `${s.album.tracks.length}곡  ${fmt(total)}`;
     arm.setAttribute('aria-valuemax', String(Math.round(total)));
     arm.setAttribute('aria-valuenow', String(Math.round(s.needleDown ? player.time : 0)));

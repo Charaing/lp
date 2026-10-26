@@ -77,6 +77,7 @@ export class Player extends EventTarget {
 
   seek(t) {
     if (!this.album) return;
+    if (this.total > 0 && t >= this.total) return this._runOut();
     const { index, offset } = locate(this.durations, t);
     this._setTrack(index, offset);
   }
@@ -94,6 +95,16 @@ export class Player extends EventTarget {
       this.audio.currentTime = offset;
     }
     if (changed) this._emit('track', { index });
+  }
+
+  // The needle sits in the run-out groove: stop at the end of the last track.
+  _runOut() {
+    const last = this.album.tracks.length - 1;
+    this._pendingOffset = null;
+    if (this._index !== last) { this._index = last; this.audio.src = this.album.tracks[last].src; this._emit('track', { index: last }); }
+    this._want = false;
+    this.audio.pause();
+    this._emit('ended');
   }
 
   _advance() {

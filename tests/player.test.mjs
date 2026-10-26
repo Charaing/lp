@@ -69,3 +69,17 @@ test('the latest seek wins when metadata arrives late', async () => {
   assert.equal(p.audio.currentTime, 7);
   FakeAudio.hold = false;
 });
+
+test('seeking to the end of the album ends it instead of replaying the last track', async () => {
+  FakeAudio.hold = false;
+  const p = new Player();
+  await p.load(album('ok-1', 'ok-2'));
+  await tick();
+  let ended = false;
+  p.addEventListener('ended', () => { ended = true; });
+  p.play();
+  p.seek(p.total);
+  await tick();
+  assert.equal(ended, true);
+  assert.equal(p.audio.paused, true);
+});

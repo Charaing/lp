@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GROOVE, radiusToTime, timeToRadius, locate, startOf, gapRadii } from '../js/timeline.js';
+import { GROOVE, radiusToTime, timeToRadius, locate, startOf, gapRadii, trackStartAt } from '../js/timeline.js';
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 
@@ -44,4 +44,21 @@ test('zero total does not divide by zero', () => {
 test('locate with all-unknown durations starts at the first track', () => {
   assert.deepEqual(locate([0, 0, 0], 0), { index: 0, offset: 0 });
   assert.deepEqual(locate([0, 0, 0], 12), { index: 0, offset: 0 });
+});
+
+test('trackStartAt snaps a time to the start of the track it falls in', () => {
+  assert.equal(trackStartAt([30, 20, 50], 0), 0);
+  assert.equal(trackStartAt([30, 20, 50], 29.9), 0);
+  assert.equal(trackStartAt([30, 20, 50], 35), 30);
+  assert.equal(trackStartAt([30, 20, 50], 77), 50);
+});
+
+test('trackStartAt keeps the run-out (end of album) as the end', () => {
+  assert.equal(trackStartAt([30, 20, 50], 100), 100);
+  assert.equal(trackStartAt([30, 20, 50], 999), 100);
+});
+
+test('trackStartAt skips failed tracks and handles unknown lengths', () => {
+  assert.equal(trackStartAt([30, 0, 50], 30), 30);
+  assert.equal(trackStartAt([0, 0, 0], 5), 0);
 });
