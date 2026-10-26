@@ -1,8 +1,9 @@
 import { Player } from './player.js';
-import { createShelf } from './shelf.js';
+import { createCrate } from './crate.js';
 import { createTurntable } from './turntable.js';
 import { loadCover, designFor } from './vinyl.js';
 import { connectMediaSession } from './now-playing.js';
+import { albumIdFromHash, hashForAlbum } from './router.js';
 
 const toastEl = document.getElementById('toast');
 let toastTimer = 0;
@@ -27,17 +28,75 @@ async function loadAlbums() {
 const player = new Player();
 player.addEventListener('error', (e) => toast(`재생할 수 없는 트랙: ${e.detail.title}`));
 
-const turntable = createTurntable(document.getElementById('deck'), player);
-connectMediaSession(player, turntable);
+const crateScreen = document.getElementById('crate-screen');
+const deckScreen = document.getElementById('deck-screen');
+const deck = createTurntable(document.getElementById('deck'), player);
+connectMediaSession(player, deck);
+
 const albums = await loadAlbums();
-const shelf = createShelf(document.getElementById('crate'), albums, (album) => {
-  shelf.setActive(album.id);
-  turntable.mount(album);
+let current = null; // album on the platter
+
+const crate = createCrate(document.getElementById('crate'), albums, {
+  onPick(album) {
+    history.pushState({ fromCrate: true }, '', hashForAlbum(album.id));
+    openDeck(album);
+  },
 });
 
-if (albums.length === 0) document.querySelector('.deck-hint').textContent = 'albums/ 폴더에 앨범을 넣어주세요';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function swapScreens(show, hide) {
+  if (!hide.hidden) {
+    hide.classList.add('leaving');
+    setTimeout(() => { hide.hidden = true; hide.classList.remove('leaving'); }, reduced ? 0 : 250);
+  }
+  show.hidden = false;
+  show.classList.add('entering');
+  requestAnimationFrame(() => requestAnimationFrame(() => show.classList.remove('entering')));
+}
 
-// Tint each sleeve's peeking record with the color its LP will have.
+function openDeck(album) {
+  crate.hide();
+  deck.setVisible(true);
+  swapScreens(deckScreen, crateScreen);
+  if (current !== album) {
+    current = album;
+    deck.mount(album);
+  }
+  document.title = `${album.title} — lp`;
+}
+
+function openCrate() {
+  if (current) crate.focusAlbum(current.id);
+  current = null;
+  deck.eject();
+  deck.setVisible(false);
+  swapScreens(crateScreen, deckScreen);
+  crate.show();
+  document.title = 'LP 턴테이블';
+}
+
+function route() {
+  const id = albumIdFromHash(location.hash);
+  const album = id != null ? albums.find((a) => a.id === id) : null;
+  if (album) return openDeck(album);
+  if (id != null) history.replaceState(null, '', location.pathname + location.search);
+  if (!crateScreen.hidden && deckScreen.hidden) return;
+  openCrate();
+}
+
+document.getElementById('back').addEventListener('click', () => {
+  if (history.state?.fromCrate) history.back();
+  else {
+    history.replaceState(null, '', location.pathname + location.search);
+    openCrate();
+  }
+});
+window.addEventListener('popstate', route);
+
+deck.setVisible(false);
+route();
+
+// Tint the record peeking out of each sleeve with the colour its LP will have.
 for (const album of albums) {
-  loadCover(album.cover).then((cover) => shelf.setTint(album.id, designFor(album, cover).base));
+  loadCover(album.cover).then((cover) => crate.setTint(album.id, designFor(album, cover).base));
 }
