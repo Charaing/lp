@@ -1,10 +1,10 @@
-// Tonearm geometry in the plinth's SVG coordinates (viewBox 0 0 1200 780).
+// Tonearm geometry in the deck's SVG coordinates (viewBox 0 0 1000 1300, portrait).
 // Angles are degrees, measured from the pivot; 90° points straight down.
 
-export const PLINTH = { w: 1200, h: 780 };
-export const DISC = { x: 380, y: 390, r: 330 };
-export const PIVOT = { x: 850, y: 150 };
-export const ARM_LENGTH = 560;
+export const PLINTH = { w: 1000, h: 1300 };
+export const DISC = { x: 380, y: 520, r: 430 };
+export const PIVOT = { x: 870, y: 160 };
+export const ARM_LENGTH = 600;
 
 const D = Math.hypot(DISC.x - PIVOT.x, DISC.y - PIVOT.y);
 const PHI = (Math.atan2(DISC.y - PIVOT.y, DISC.x - PIVOT.x) * 180) / Math.PI;
