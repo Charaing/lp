@@ -23,32 +23,45 @@ albums/
 
 ### album.json (선택)
 
+제목·아티스트와 LP 모양을 정해요. 직접 쓰기보다 사이트의 **꾸미기 → 모두에게 적용**으로 코드를 복사해 붙여넣는 게 편해요.
+
 ```json
 {
   "title": "앨범 제목",
   "artist": "아티스트",
   "year": 2026,
-  "vinyl": { "color": "#c0392b", "style": "marble", "accent": "#f5d76e" },
-  "label": { "color": "#111111", "text": "#ffffff" },
+  "vinyl": { "style": "marble", "color": "#c0392b", "accent": "#f5d76e", "shape": "round", "size": 12 },
+  "label": { "mode": "cover", "size": 0.36, "color": "#111111", "text": "#ffffff", "showTitle": false, "ring": true },
+  "finish": { "grooves": 0.5, "gloss": 0.6 },
+  "deck": { "body": "auto", "arm": "silver" },
   "rpm": 33
 }
 ```
 
-| 항목 | 설명 |
+| 항목 | 값 |
 |---|---|
 | `title` | 없으면 폴더 이름 |
-| `vinyl.style` | `solid`, `translucent`(반투명), `marble`(마블), `splatter`(물감 튄 무늬), `picture`(표지가 인쇄된 픽처 디스크) |
-| `vinyl.color`, `vinyl.accent` | 비닐 바탕색과 무늬 색 (`#rrggbb`) |
-| `label.color`, `label.text` | 표지가 없을 때 가운데 라벨 색과 글자 색 |
+| `vinyl.style` | `black` 검정(기본), `solid` 단색, `translucent` 반투명, `marble` 마블, `splatter` 스플래터, `gradient` 그라데이션, `half` 반반, `glitter` 글리터, `picture` 픽처 디스크 |
+| `vinyl.color`, `vinyl.accent` | 바이닐 색과 무늬 보조색 (`#rrggbb`) |
+| `vinyl.shape` | `round` 원, `heart` 하트, `star` 별, `hexagon` 육각형, `flower` 꽃 |
+| `vinyl.size` | `7`, `10`, `12` (인치) |
+| `label.mode` | `cover` 앨범 표지, `color` 단색, `text` 글자 |
+| `label.size` | 0.25–0.45 (모양이 뾰족하거나 작으면 자동으로 줄어요) |
+| `label.color`, `label.text` | 라벨 바탕색, 글자색 |
+| `label.showTitle`, `label.ring` | 제목·아티스트 표시, 라벨 테두리 (`true`/`false`) |
+| `finish.grooves`, `finish.gloss` | 홈 선명도, 광택 (0–1) |
+| `deck.body` | 턴테이블 몸체 색: `auto`(표지 색) 또는 `#rrggbb` |
+| `deck.arm` | 톤암: `silver`, `gold`, `black` |
 | `rpm` | 33 또는 45. 처음 선택될 회전 속도 |
 
 ## 조작
 
-- 첫 화면에서 재킷을 좌우로 넘기고(스와이프·휠·`←` `→`), 가운데 재킷을 누르면 LP를 꺼내 턴테이블에 올려요. 주소 끝에 `#앨범폴더이름`을 붙이면 그 앨범 턴테이블이 바로 열려요.
+- 첫 화면에서 재킷을 좌우로 넘기고(손가락으로 끌기·휠·`←` `→`), 가운데 재킷을 누르면 LP를 꺼내 턴테이블에 올려요. 주소 끝에 `#앨범폴더이름`을 붙이면 그 앨범 턴테이블이 바로 열려요.
 - 턴테이블 색은 앨범 표지에서 자동으로 정해지고, LP는 기본적으로 검은 바이닐에 표지가 라벨로 들어가요. `album.json`에 `vinyl`을 적은 앨범만 그 색·무늬로 나와요.
 - **PLAY**를 누르면 바늘이 첫 곡에 내려가고, 톤암을 직접 끌어다 놓으면 바늘 아래 곡이 처음부터 재생돼요. 바깥쪽이 1번 곡이고, 라벨 가까이 안쪽 끝(런아웃)에 놓으면 소리가 나지 않아요.
 - **STOP**으로 멈추고, ⏮ ⏭ 버튼으로 이전/다음 곡. 왼쪽 위 **레코드 고르기**로 돌아가면 재생이 멈춰요.
 - 키보드: `Space` 재생/정지, `←` `→` 이전/다음 곡.
+- 턴테이블 화면 오른쪽 아래 **꾸미기**로 LP 무늬·색·모양·크기·라벨·질감, 턴테이블 색, 톤암 색을 바꿀 수 있어요. 바꾼 모양은 이 브라우저에 앨범마다 저장되고, **되돌리기**로 원래대로, **모두에게 적용**으로 album.json 코드를 복사해요.
 - 아이폰: Safari 공유 버튼 → **홈 화면에 추가**로 앱처럼 쓸 수 있어요. 재생 중에는 잠금 화면과 다이내믹 아일랜드에 곡 제목·아티스트·앨범 표지가 뜨고, 거기서 재생/정지와 이전/다음 곡도 돼요.
 
 ## 데모 앨범
