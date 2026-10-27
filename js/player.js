@@ -70,6 +70,20 @@ export class Player extends EventTarget {
     return this.durations;
   }
 
+  // The record came off the platter: stop, forget the album and free the audio.
+  unload() {
+    this._loadToken++;
+    this.pause();
+    this.album = null;
+    this.durations = [];
+    this.failed = new Set();
+    this._index = 0;
+    this._pendingOffset = null;
+    this.audio.removeAttribute('src');
+    this.audio.load();
+    this._emit('unload');
+  }
+
   get total() { return this.durations.reduce((a, d) => a + d, 0); }
   get index() { return this._index; }
   get playing() { return !this.audio.paused; }

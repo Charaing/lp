@@ -124,10 +124,12 @@ export function createTurntable(root, player) {
       const cover = await loadCover(album.cover);
       const design = designFor(album, cover);
       const colors = deckColors(design.palette);
-      for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
-        (screen ?? root).style.setProperty(k, v);
-      }
-      return { cover, design };
+      const apply = () => {
+        for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
+          (screen ?? root).style.setProperty(k, v);
+        }
+      };
+      return { cover, design, apply };
     },
     drawVinyl: (...args) => draw(...args),
   });

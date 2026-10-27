@@ -1,5 +1,5 @@
 // The first screen: record sleeves in a cover flow. Flip through them and pull one out.
-import { clampIndex, stepFromWheel, stepFromSwipe, coverflowTransform } from './crate-math.js';
+import { clampIndex, stepFromWheel, stepFromSwipe, coverflowTransform, createWheelGate } from './crate-math.js';
 
 const PICK_MS = 420;
 const WHEEL_GAP_MS = 250;
@@ -139,14 +139,11 @@ export function createCrate(root, albums, { onPick }) {
   next.addEventListener('click', () => step(1));
 
   // one sleeve per wheel gesture, however many events a trackpad fires
-  let wheelAt = 0;
+  const wheelGate = createWheelGate(WHEEL_GAP_MS);
   stage.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const now = performance.now();
     const d = stepFromWheel(Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
-    if (!d || now - wheelAt < WHEEL_GAP_MS) return;
-    wheelAt = now;
-    step(d);
+    if (wheelGate(performance.now()) && d) step(d);
   }, { passive: false });
 
   let start = null;

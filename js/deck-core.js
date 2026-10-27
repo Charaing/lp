@@ -15,7 +15,8 @@ export const fmt = (sec) => {
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 };
 
-// view: { setHint(text), loadArt(album) → Promise<{ cover, design }>, drawVinyl(album, cover, design, durations) }
+// view: { setHint(text), loadArt(album) → Promise<{ cover, design, apply? }>, drawVinyl(album, cover, design, durations) }
+// apply() runs only if the album is still the one being mounted (e.g. to recolour the deck).
 export function createDeckCore(player, view, { now = () => performance.now() } = {}) {
   const s = {
     album: null, phase: 'empty', // 'empty' | 'swapping' | 'loaded'
@@ -204,8 +205,9 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     const loading = player.load(album);
     s.audible = false; // load() paused the player
     if (s.needleDown) returnToRest(); // dropped on the outgoing record during the swap
-    const { cover, design } = await view.loadArt(album);
-    if (token !== mountToken) return;
+    const { cover, design, apply } = await view.loadArt(album);
+    if (token !== mountToken) return; // another record went on while this cover loaded
+    apply?.();
     setRpm(album.rpm);
     view.drawVinyl(album, cover, design, album.tracks.map(() => 0));
     s.phase = 'loaded';
@@ -222,7 +224,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     s.album = null;
     s.phase = 'empty';
     s.audible = false;
-    player.pause();
+    player.unload();
     setMotor(false);
     returnToRest();
     view.setHint('레코드를 골라 플래터에 올리세요');

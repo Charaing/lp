@@ -40,3 +40,20 @@ test('coverflowTransform: far sleeves fade out', () => {
   assert.equal(coverflowTransform(6, 300).opacity, 0);
   assert.equal(coverflowTransform(-6, 300).opacity, 0);
 });
+
+import { createWheelGate } from '../js/crate-math.js';
+
+test('one trackpad fling (a continuous burst of wheel events) flips one sleeve', () => {
+  const gate = createWheelGate(250);
+  let steps = 0;
+  for (let t = 0; t <= 1000; t += 16) if (gate(t)) steps++;
+  assert.equal(steps, 1);
+});
+
+test('separate wheel gestures each flip a sleeve', () => {
+  const gate = createWheelGate(250);
+  assert.equal(gate(0), true);
+  assert.equal(gate(300), true);
+  assert.equal(gate(310), false);
+  assert.equal(gate(700), true);
+});

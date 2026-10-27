@@ -34,6 +34,7 @@ export function connectMediaSession(player, deck) {
 
   player.addEventListener('track', refresh);
   player.addEventListener('durations', refresh);
+  player.addEventListener('unload', () => { ms.metadata = null; ms.playbackState = 'none'; });
   audio.addEventListener('play', () => { ms.playbackState = 'playing'; refresh(); });
   audio.addEventListener('pause', () => { ms.playbackState = 'paused'; position(); });
   audio.addEventListener('seeked', position);

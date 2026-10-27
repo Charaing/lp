@@ -29,3 +29,14 @@ export function coverflowTransform(offset, size) {
     zIndex: 100 - n,
   };
 }
+
+// A wheel gesture (a trackpad fling keeps firing for a second) counts once: an event
+// only flips a sleeve if the wheel had been still for gapMs before it.
+export function createWheelGate(gapMs) {
+  let last = -Infinity;
+  return (t) => {
+    const fresh = t - last >= gapMs;
+    last = t;
+    return fresh;
+  };
+}

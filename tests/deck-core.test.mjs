@@ -104,3 +104,33 @@ test('lifting the needle after the run-out clears the "listened to the end" stat
   assert.equal(core.state.ended, false);
   assert.equal(core.info().line, '2곡  0:20');
 });
+
+test('a mount that was overtaken does not apply its colours', async () => {
+  const player = new Player();
+  const applied = [];
+  let releaseA;
+  const view = {
+    setHint() {},
+    loadArt: (album) => album.id === 'slow'
+      ? new Promise((r) => { releaseA = () => r({ cover: null, design: {}, apply: () => applied.push('slow') }); })
+      : Promise.resolve({ cover: null, design: {}, apply: () => applied.push(album.id) }),
+    drawVinyl() {},
+  };
+  const core = createDeckCore(player, view);
+  const first = core.mount({ ...album, id: 'slow' });
+  await sleep(10);
+  core.eject();
+  await core.mount({ ...album, id: 'fast' });
+  releaseA();
+  await first;
+  assert.deepEqual(applied, ['fast']);
+});
+
+test('eject lets go of the album so the lock screen can clear', async () => {
+  const { player, core } = await mounted();
+  let unloaded = false;
+  player.addEventListener('unload', () => { unloaded = true; });
+  core.eject();
+  assert.equal(player.album, null);
+  assert.equal(unloaded, true);
+});

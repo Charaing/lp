@@ -44,11 +44,16 @@ const crate = createCrate(document.getElementById('crate'), albums, {
 });
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hideTimers = new Map();
 function swapScreens(show, hide) {
   if (!hide.hidden) {
     hide.classList.add('leaving');
-    setTimeout(() => { hide.hidden = true; hide.classList.remove('leaving'); }, reduced ? 0 : 250);
+    clearTimeout(hideTimers.get(hide));
+    hideTimers.set(hide, setTimeout(() => { hide.hidden = true; hide.classList.remove('leaving'); }, reduced ? 0 : 250));
   }
+  // a screen coming back before its fade-out finished must not be hidden by that old timer
+  clearTimeout(hideTimers.get(show));
+  show.classList.remove('leaving');
   show.hidden = false;
   show.classList.add('entering');
   requestAnimationFrame(() => requestAnimationFrame(() => show.classList.remove('entering')));

@@ -67,6 +67,7 @@ button { font: inherit; color: inherit; }
 .crate-screen {
   --sleeve: min(62vw, 40vh, 340px);
   display: flex; flex-direction: column;
+  overflow-x: clip; /* side sleeves sit off-screen; they must not widen the page */
   background:
     radial-gradient(ellipse 80% 60% at 50% 38%, #fff 0, transparent 70%),
     linear-gradient(180deg, var(--paper) 0, var(--paper-deep) 100%);
@@ -191,7 +192,7 @@ button { font: inherit; color: inherit; }
 /* ---------- turntable (top-down) ---------- */
 
 .tt {
-  --w: min(calc((100dvh - 64px) * 1000 / 1300), 560px);
+  --w: min(calc((100dvh - 64px) * 1000 / 1300), calc((100vw - 460px) / 1.05), 560px);
   position: relative;
   width: var(--w);
   aspect-ratio: 1000 / 1300;
@@ -331,16 +332,31 @@ button { font: inherit; color: inherit; }
 
 /* ---------- small screens ---------- */
 
-@media (max-width: 768px) {
-  .screen { padding-left: 16px; padding-right: 16px; }
+@media (max-width: 900px) {
   .deck-screen { align-items: flex-start; padding-top: calc(max(16px, env(safe-area-inset-top)) + 58px); }
   .deck { grid-template-columns: minmax(0, 1fr); gap: 18px; width: 100%; justify-items: center; }
-  .tt { --w: min(calc(100vw - 32px - 5vw), calc((100dvh - 230px) * 1000 / 1300)); }
-  .deck-side { width: 100%; padding-left: 4px; }
+  .tt { --w: min(calc(100vw - 32px - 5vw), calc((100dvh - 230px) * 1000 / 1300), 640px); }
+  .deck-side { width: min(100%, calc(var(--w, 640px) * 1.05)); padding-left: 4px; }
+}
+
+@media (max-width: 768px) {
+  .screen { padding-left: 16px; padding-right: 16px; }
   .np-title { font-size: 26px; }
   .np-track { margin-top: 10px !important; }
   .crate-screen { --sleeve: min(66vw, 42vh, 340px); }
   .crate-nav { display: none; }
+}
+
+/* phones held sideways: turntable and its info side by side, sized by the short edge */
+@media (orientation: landscape) and (max-height: 520px) {
+  .deck-screen { align-items: center; padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(72px, env(safe-area-inset-left)); }
+  .deck { grid-template-columns: auto minmax(160px, 1fr); gap: 24px; width: auto; justify-items: start; }
+  .tt { --w: calc((100dvh - 44px) * 1000 / 1300); }
+  .deck-side { width: auto; }
+  .np-title { font-size: 22px; }
+  .crate-screen { --sleeve: min(40vw, 52vh, 300px); }
+  .back { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); padding: 8px; }
+  .back { font-size: 0; gap: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
