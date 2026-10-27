@@ -41,7 +41,7 @@ test('coverflowTransform: far sleeves fade out', () => {
   assert.equal(coverflowTransform(-6, 300).opacity, 0);
 });
 
-import { createWheelGate } from '../js/crate-math.js';
+import { createWheelGate, clampFloat } from '../js/crate-math.js';
 
 test('one trackpad fling (a continuous burst of wheel events) flips one sleeve', () => {
   const gate = createWheelGate(250);
@@ -56,4 +56,17 @@ test('separate wheel gestures each flip a sleeve', () => {
   assert.equal(gate(300), true);
   assert.equal(gate(310), false);
   assert.equal(gate(700), true);
+});
+
+test('coverflowTransform interpolates fractional offsets', () => {
+  const a = coverflowTransform(0, 300), b = coverflowTransform(1, 300), m = coverflowTransform(0.5, 300);
+  assert.ok(Math.abs(m.x - (a.x + b.x) / 2) < 1e-9);
+  assert.ok(Math.abs(m.rotY - (a.rotY + b.rotY) / 2) < 1e-9);
+  assert.ok(Math.abs(m.z - (a.z + b.z) / 2) < 1e-9);
+});
+
+test('pulling past either end only stretches a little', () => {
+  assert.equal(clampFloat(-2, 5), -0.5);
+  assert.equal(clampFloat(6, 5), 4.5);
+  assert.equal(clampFloat(2.4, 5), 2.4);
 });

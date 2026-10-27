@@ -19,6 +19,13 @@ export function stepFromSwipe(dx, dy, threshold = 40) {
 // Cover flow: offset 0 faces you; the others turn 58° toward the centre and
 // stack outward, closer together the further they are. Far ones fade out.
 export function coverflowTransform(offset, size) {
+  // while a finger drags the row, offsets are fractional: blend the two neighbouring poses
+  if (!Number.isInteger(offset)) {
+    const lo = Math.floor(offset), t = offset - lo;
+    const a = coverflowTransform(lo, size), b = coverflowTransform(lo + 1, size);
+    const mix = (k) => a[k] + (b[k] - a[k]) * t;
+    return { x: mix('x'), z: mix('z'), rotY: mix('rotY'), opacity: mix('opacity'), zIndex: 100 - Math.round(Math.abs(offset)) };
+  }
   if (offset === 0) return { x: 0, z: 0, rotY: 0, opacity: 1, zIndex: 100 };
   const sign = Math.sign(offset), n = Math.abs(offset);
   return {
@@ -39,4 +46,12 @@ export function createWheelGate(gapMs) {
     last = t;
     return fresh;
   };
+}
+
+// A dragged position may go a little past the first or last sleeve, then resists.
+export function clampFloat(f, count) {
+  const max = Math.max(0, count - 1);
+  if (f < 0) return f * 0.25;
+  if (f > max) return max + (f - max) * 0.25;
+  return f;
 }

@@ -100,10 +100,62 @@ button { font: inherit; color: inherit; }
   position: absolute; left: 50%; top: 6%;
   width: var(--sleeve); height: var(--sleeve);
   margin-left: calc(var(--sleeve) / -2);
-  transition: transform .5s cubic-bezier(.2, .8, .2, 1), opacity .35s;
+  --t: calc(var(--sleeve) * .032); /* jacket thickness */
+  transition: transform .55s cubic-bezier(.2, 1.25, .35, 1), opacity .35s;
   cursor: pointer;
   transform-style: preserve-3d;
 }
+.coverflow.dragging .sleeve-card { transition: none; }
+
+/* the jacket is a thin box: front, two spines and a top edge */
+.sleeve-card .jacket { transform: translateZ(calc(var(--t) / 2)); }
+.spine, .spine-top { position: absolute; display: block; backface-visibility: hidden; }
+.spine {
+  top: 0; height: 100%; width: var(--t);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .28), rgba(255, 255, 255, .12) 45%, rgba(0, 0, 0, .25)),
+    color-mix(in srgb, var(--spine, #8a847c) 70%, #000);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.spine-r { left: calc(100% - var(--t) / 2); transform: rotateY(90deg); }
+.spine-l { left: calc(var(--t) / -2); transform: rotateY(-90deg); }
+.spine-text {
+  writing-mode: vertical-rl; white-space: nowrap;
+  font-size: calc(var(--t) * .58); font-weight: 700; letter-spacing: .04em;
+  color: rgba(255, 255, 255, .85);
+}
+.spine-l .spine-text { transform: rotate(180deg); }
+.spine-top {
+  left: 0; top: calc(var(--t) / -2); width: 100%; height: var(--t);
+  transform: rotateX(90deg);
+  background: linear-gradient(180deg, #f2efe9, #d9d4cc);
+}
+
+/* shrink-wrap: a band of shine that slides as the jacket turns, faint creases, the slit at the opening */
+.wrap {
+  position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background:
+    linear-gradient(105deg, transparent 0 30%, rgba(255, 255, 255, .34) 42%, rgba(255, 255, 255, .06) 50%, transparent 58%) calc(50% + var(--tilt, 0) * 120%) 0 / 260% 100% no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .03' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E") center / cover;
+  mix-blend-mode: screen;
+  transition: background-position .55s cubic-bezier(.2, 1.25, .35, 1);
+}
+.coverflow.dragging .wrap { transition: none; }
+.wrap::after {
+  content: ""; position: absolute; top: 4%; bottom: 4%; right: 1.2%; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .55) 20%, rgba(255, 255, 255, .55) 80%, transparent);
+}
+.sticker {
+  position: absolute; z-index: 3; top: 5%; right: 5%;
+  width: 17%; aspect-ratio: 1; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+  background: radial-gradient(circle at 35% 30%, #fff8e8, #f3d77a 70%, #e5c158);
+  color: #2a1e08; transform: rotate(-12deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  font-size: calc(var(--sleeve) * .036);
+}
+.sticker b { font-size: 1.15em; font-weight: 800; }
+.sticker span { font-size: .8em; font-weight: 700; letter-spacing: .1em; margin-top: 2px; }
 .sleeve-card .jacket {
   position: absolute; inset: 0; overflow: hidden; border-radius: 3px;
   background: #ddd;
@@ -113,7 +165,7 @@ button { font: inherit; color: inherit; }
 /* light on the cardboard */
 .sleeve-card .jacket::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, rgba(255, 255, 255, .16), transparent 38%, transparent 70%, rgba(0, 0, 0, .06));
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), transparent 30%, transparent 70%, rgba(0, 0, 0, .08));
 }
 .jacket img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .jacket-plain {
@@ -445,5 +497,5 @@ button { font: inherit; color: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sleeve-card, .sleeve-disc, .tt-slot, .toast, .screen { transition: none; }
+  .sleeve-card, .sleeve-disc, .tt-slot, .toast, .screen, .wrap { transition: none; }
 }
