@@ -96,7 +96,10 @@ window.addEventListener('popstate', route);
 deck.setVisible(false);
 route();
 
-// Tint the record peeking out of each sleeve with the colour its LP will have.
+// The record tucked in each sleeve gets a label in the cover's main colour.
 for (const album of albums) {
-  loadCover(album.cover).then((cover) => crate.setTint(album.id, designFor(album, cover).base));
+  loadCover(album.cover).then((cover) => {
+    const { palette } = designFor(album, cover);
+    if (palette[0]) crate.setTint(album.id, palette[0]);
+  });
 }

@@ -1,12 +1,12 @@
-// The 2D deck: spinning platter, draggable tonearm, start/stop and 33/45, drawn with SVG and a canvas.
-// It is also the fallback when the 3D deck can't run. Behaviour lives in deck-core.js.
-import { PLINTH, DISC, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
+// The turntable seen from straight above: a solid-colour body taking its colour from the
+// album, a black record with the cover as its label, a silver tonearm and three round keys.
+// Behaviour lives in deck-core.js; this file draws it and turns input into calls on the core.
+import { PLINTH, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
 import { loadCover, designFor, renderVinyl } from './vinyl.js';
+import { deckColors } from './palette.js';
 import { createDeckCore, bindDeckKeys } from './deck-core.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-const pct = (v, of) => `${(v / of) * 100}%`;
 
 function svg(tag, attrs = {}) {
   const n = document.createElementNS(SVG_NS, tag);
@@ -14,117 +14,132 @@ function svg(tag, attrs = {}) {
   return n;
 }
 
+// The arm is drawn pointing straight down (90°) from the pivot and rotated into place.
 function buildArm() {
-  const root = svg('svg', { class: 'arm-layer', viewBox: `0 0 ${PLINTH.w} ${PLINTH.h}`, 'aria-hidden': 'true' });
-  const defs = svg('defs');
-  defs.innerHTML = `
-    <linearGradient id="alu" x1="0" x2="1">
-      <stop offset="0" stop-color="#8d918f"/><stop offset=".45" stop-color="#eef0ee"/><stop offset="1" stop-color="#9a9e9c"/>
-    </linearGradient>
-    <radialGradient id="aluDisc" cx=".4" cy=".35" r=".7">
-      <stop offset="0" stop-color="#f4f5f3"/><stop offset=".7" stop-color="#b8bcba"/><stop offset="1" stop-color="#7d817f"/>
-    </radialGradient>
-    <filter id="armShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow id="armShadowOffset" dx="10" dy="14" stdDeviation="6" flood-color="#000" flood-opacity=".45"/>
-    </filter>`;
-  root.append(defs);
+  const root = svg('svg', { class: 'tt-arm', viewBox: `0 0 ${PLINTH.w} ${PLINTH.h}` });
+  const P = PIVOT, tip = P.y + ARM_LENGTH;
+  root.innerHTML = `
+    <defs>
+      <linearGradient id="tt-tube" x1="0" x2="1">
+        <stop offset="0" stop-color="#8d9190"/><stop offset=".35" stop-color="#ffffff"/><stop offset=".6" stop-color="#c9cccb"/><stop offset="1" stop-color="#7c807f"/>
+      </linearGradient>
+      <radialGradient id="tt-dome" cx=".38" cy=".32" r=".75">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#c3c6c5"/><stop offset="1" stop-color="#6f7372"/>
+      </radialGradient>
+      <linearGradient id="tt-shell" x1="0" x2="1">
+        <stop offset="0" stop-color="#0d0d0d"/><stop offset=".5" stop-color="#2a2a2a"/><stop offset="1" stop-color="#0d0d0d"/>
+      </linearGradient>
+      <filter id="tt-arm-shadow" x="-30%" y="-10%" width="160%" height="130%">
+        <feDropShadow id="tt-arm-shadow-offset" dx="14" dy="16" stdDeviation="7" flood-color="#000" flood-opacity=".32"/>
+      </filter>
+    </defs>`;
 
-  // arm rest post
-  root.append(svg('rect', { x: PIVOT.x - 16, y: PIVOT.y + 440, width: 32, height: 22, rx: 6, fill: '#1b1513', stroke: '#6f6a66' }));
-  root.append(svg('circle', { cx: PIVOT.x, cy: PIVOT.y, r: 62, fill: 'url(#aluDisc)', stroke: '#5b5f5d', 'stroke-width': 2 }));
-  root.append(svg('circle', { cx: PIVOT.x, cy: PIVOT.y, r: 44, fill: 'none', stroke: '#6e7270', 'stroke-width': 1.5 }));
-
-  // The arm is drawn pointing straight down (90°) and rotated around the pivot.
-  const arm = svg('g', { class: 'arm', filter: 'url(#armShadow)' });
-  const tipY = PIVOT.y + ARM_LENGTH;
-  arm.append(
-    svg('rect', { x: PIVOT.x - 20, y: PIVOT.y - 92, width: 40, height: 58, rx: 8, fill: 'url(#alu)', stroke: '#585c5a' }),
-    svg('rect', { x: PIVOT.x - 7, y: PIVOT.y - 40, width: 14, height: 40, fill: '#3a3d3c' }),
-    svg('path', {
-      d: `M${PIVOT.x} ${PIVOT.y} L${PIVOT.x} ${tipY - 150} Q${PIVOT.x} ${tipY - 95} ${PIVOT.x - 26} ${tipY - 62}`,
-      fill: 'none', stroke: 'url(#alu)', 'stroke-width': 14, 'stroke-linecap': 'round',
-    }),
-    svg('circle', { cx: PIVOT.x, cy: PIVOT.y, r: 24, fill: 'url(#aluDisc)', stroke: '#585c5a', 'stroke-width': 2 }),
+  // the base the arm turns on, set into the body
+  root.append(
+    svg('circle', { cx: P.x, cy: P.y, r: 92, fill: 'rgba(0,0,0,.12)' }),
+    svg('circle', { cx: P.x, cy: P.y, r: 86, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.25)', 'stroke-width': 2 }),
+    svg('circle', { cx: P.x, cy: P.y, r: 58, fill: 'none', stroke: 'rgba(0,0,0,.18)', 'stroke-width': 2 }),
   );
-  // headshell: needle sits exactly at (PIVOT.x, tipY)
-  const head = svg('g', { transform: `rotate(18 ${PIVOT.x} ${tipY})` });
+  // the rest the arm parks on
+  root.append(svg('rect', { x: P.x - 20, y: P.y + 452, width: 40, height: 30, rx: 10, fill: '#1a1a1a', opacity: '.85' }));
+
+  const arm = svg('g', { class: 'arm', filter: 'url(#tt-arm-shadow)' });
+  arm.append(
+    // counterweight behind the pivot
+    svg('rect', { x: P.x - 30, y: P.y - 122, width: 60, height: 84, rx: 12, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.25)', 'stroke-width': 2 }),
+    svg('rect', { x: P.x - 30, y: P.y - 66, width: 60, height: 8, fill: '#151515' }),
+    // the tube
+    svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 70, rx: 9, fill: 'url(#tt-tube)' }),
+    svg('circle', { cx: P.x, cy: P.y, r: 30, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 2 }),
+  );
+  // headshell and cartridge, angled like a real offset headshell; the stylus is exactly at the tip
+  const head = svg('g', { transform: `rotate(22 ${P.x} ${tip})` });
   head.append(
-    svg('rect', { x: PIVOT.x - 22, y: tipY - 66, width: 44, height: 78, rx: 7, fill: '#1d1a19', stroke: '#9a9e9c', 'stroke-width': 2 }),
-    svg('rect', { x: PIVOT.x + 22, y: tipY - 56, width: 22, height: 8, rx: 4, fill: 'url(#alu)' }),
-    svg('circle', { cx: PIVOT.x, cy: tipY, r: 4, fill: '#ffb04a' }),
+    svg('rect', { x: P.x - 26, y: tip - 96, width: 52, height: 112, rx: 10, fill: 'url(#tt-shell)' }),
+    svg('rect', { x: P.x + 26, y: tip - 86, width: 34, height: 10, rx: 5, fill: 'url(#tt-tube)' }),
+    svg('rect', { x: P.x - 16, y: tip - 44, width: 32, height: 50, rx: 4, fill: '#3a3a3a' }),
+    svg('circle', { cx: P.x, cy: tip, r: 4, fill: '#ff8a1f' }),
   );
   arm.append(head);
-  const grab = svg('circle', { class: 'arm-grab', cx: PIVOT.x, cy: tipY - 30, r: 70, fill: 'transparent' });
+  const grab = svg('circle', { class: 'arm-grab', cx: P.x, cy: tip - 60, r: 95, fill: 'transparent' });
   arm.append(grab);
   root.append(arm);
-  return { root, arm, grab };
+  return { root, arm, grab, shadow: root.querySelector('#tt-arm-shadow-offset') };
 }
+
+const icon = {
+  prev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M18 6l-9 6 9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+  next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+};
 
 export function createTurntable(root, player) {
   root.replaceChildren();
-  const plinth = document.createElement('div');
-  plinth.className = 'plinth';
-  plinth.innerHTML = `
-    <div class="platter" style="left:${pct(DISC.x - DISC.r * 1.06, PLINTH.w)};top:${pct(DISC.y - DISC.r * 1.06, PLINTH.h)};width:${pct(DISC.r * 2.12, PLINTH.w)};height:${pct(DISC.r * 2.12, PLINTH.h)}">
-      <div class="platter-rim"></div>
-      <div class="mat"></div>
-      <div class="disc-slot"><div class="disc"><canvas width="1024" height="1024"></canvas></div></div>
-      <div class="sheen"></div>
-      <div class="spindle"></div>
-    </div>
-    <div class="controls">
-      <div class="speed" role="group" aria-label="회전 속도">
-        <button type="button" data-rpm="33" aria-pressed="true">33</button>
-        <button type="button" data-rpm="45" aria-pressed="false">45</button>
+  const tt = document.createElement('div');
+  tt.className = 'tt';
+  tt.innerHTML = `
+    <div class="tt-record empty">
+      <div class="tt-mat"></div>
+      <div class="tt-slot">
+        <div class="tt-record-shadow"></div>
+        <div class="tt-spin"><canvas width="1024" height="1024"></canvas></div>
+        <div class="tt-sheen"></div>
       </div>
-      <div class="power">
-        <span class="pilot" aria-hidden="true"></span>
-        <button type="button" class="startstop" aria-pressed="false">시작</button>
+      <div class="tt-spindle"></div>
+    </div>
+    <span class="tt-pilot" aria-hidden="true"></span>
+    <div class="tt-speed" role="group" aria-label="회전 속도">
+      <button type="button" data-rpm="33" aria-pressed="true">33</button>
+      <button type="button" data-rpm="45" aria-pressed="false">45</button>
+    </div>
+    <div class="tt-controls">
+      <button type="button" class="tt-btn play" aria-pressed="false"><span class="key"></span><span class="cap">PLAY</span></button>
+      <div class="group">
+        <button type="button" class="tt-btn prev" aria-label="이전 곡"><span class="key"></span><span class="cap">${icon.prev}</span></button>
+        <button type="button" class="tt-btn next" aria-label="다음 곡"><span class="key"></span><span class="cap">${icon.next}</span></button>
       </div>
     </div>`;
-  const { root: armLayer, arm, grab } = buildArm();
-  plinth.append(armLayer);
-  // Title and hint live beside the plinth so phones can stack them under the turntable.
-  const info = document.createElement('div');
-  info.className = 'nowplaying';
-  info.setAttribute('aria-live', 'off');
-  info.innerHTML = '<p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p>';
-  const hintEl = document.createElement('p');
-  hintEl.className = 'deck-hint';
-  root.append(plinth, info, hintEl);
+  const { root: armLayer, arm, grab, shadow } = buildArm();
+  tt.querySelector('.tt-record').after(armLayer);
 
-  const q = (s) => plinth.querySelector(s);
-  const platter = q('.platter'), disc = q('.disc'), canvas = q('canvas');
-  const hint = hintEl, startBtn = q('.startstop');
-  const npTitle = info.querySelector('.np-title'), npArtist = info.querySelector('.np-artist'), npTrack = info.querySelector('.np-track');
-  const shadow = armLayer.querySelector('#armShadowOffset');
+  const side = document.createElement('div');
+  side.className = 'deck-side';
+  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><p class="deck-hint"></p>';
+  root.append(tt, side);
 
-  // the focusable handle for keyboard and screen readers
+  const q = (sel) => tt.querySelector(sel);
+  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas');
+  const playBtn = q('.tt-btn.play'), playCap = playBtn.querySelector('.cap');
+  const hint = side.querySelector('.deck-hint');
+  const npTitle = side.querySelector('.np-title'), npArtist = side.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
+
   arm.setAttribute('tabindex', '0');
   arm.setAttribute('role', 'slider');
   arm.setAttribute('aria-label', '톤암');
   arm.setAttribute('aria-valuemin', '0');
-  arm.removeAttribute('aria-hidden');
-  armLayer.removeAttribute('aria-hidden');
 
+  const screen = root.closest('.deck-screen');
   const core = createDeckCore(player, {
     setHint(text) { hint.textContent = text; hint.hidden = !text; },
     async loadArt(album) {
-      const [cover] = await Promise.all([loadCover(album.cover), document.fonts.ready]);
-      return { cover, design: designFor(album, cover) };
+      const cover = await loadCover(album.cover);
+      const design = designFor(album, cover);
+      const colors = deckColors(design.palette);
+      for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
+        (screen ?? root).style.setProperty(k, v);
+      }
+      return { cover, design };
     },
     drawVinyl: (...args) => draw(...args),
   });
   const s = core.state;
 
-  // ---- pointer dragging ----
+  // ---- tonearm dragging ----
   function pointerAngle(e) {
     const m = armLayer.getScreenCTM();
     if (!m) return s.angle;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
     return clampAngle((Math.atan2(p.y - PIVOT.y, p.x - PIVOT.x) * 180) / Math.PI);
   }
-
   grab.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     try { grab.setPointerCapture(e.pointerId); } catch { /* pointer already released */ }
@@ -134,9 +149,11 @@ export function createTurntable(root, player) {
   grab.addEventListener('pointerup', () => core.endDrag());
   grab.addEventListener('pointercancel', () => core.endDrag());
 
-  // ---- buttons and keys ----
-  startBtn.addEventListener('click', () => core.toggleMotor());
-  for (const b of plinth.querySelectorAll('.speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
+  // ---- keys ----
+  playBtn.addEventListener('click', () => core.togglePlay());
+  q('.tt-btn.prev').addEventListener('click', () => core.skip(-1));
+  q('.tt-btn.next').addEventListener('click', () => core.skip(1));
+  for (const b of tt.querySelectorAll('.tt-speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
   let active = true;
   bindDeckKeys(core, () => active);
 
@@ -144,26 +161,30 @@ export function createTurntable(root, player) {
   let last = performance.now();
   let lastText = 0;
   function frame(now) {
-    core.tick((now - last) / 1000, now);
+    if (active) {
+      core.tick((now - last) / 1000, now);
+      spin.style.transform = `rotate(${s.rotation}deg)`;
+      arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
+      const lift = Math.max(0, s.lift);
+      shadow.setAttribute('dx', 6 + 14 * lift);
+      shadow.setAttribute('dy', 7 + 16 * lift);
+      shadow.setAttribute('stdDeviation', 4 + 6 * lift);
+      tt.classList.toggle('dragging', s.dragging);
+      if (now - lastText > 250) { lastText = now; updateText(); }
+    }
     last = now;
-    disc.style.transform = `rotate(${s.rotation}deg)`;
-    platter.style.setProperty('--spin', `${s.rotation}deg`);
-    arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
-    shadow.setAttribute('dx', 4 + 6 * Math.max(0, s.lift));
-    shadow.setAttribute('dy', 5 + 9 * Math.max(0, s.lift));
-    plinth.classList.toggle('dragging', s.dragging);
-    if (now - lastText > 250) { lastText = now; updateText(); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
   function updateText() {
-    startBtn.textContent = s.motorOn ? '정지' : '시작';
-    startBtn.setAttribute('aria-pressed', String(s.motorOn));
-    plinth.classList.toggle('motor-on', s.motorOn);
-    for (const b of plinth.querySelectorAll('.speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === s.rpm));
-    plinth.classList.toggle('loaded', s.phase !== 'empty');
-    plinth.classList.toggle('swapping', s.phase === 'swapping');
+    const playing = s.motorOn && s.needleDown;
+    playCap.textContent = playing ? 'STOP' : 'PLAY';
+    playBtn.setAttribute('aria-pressed', String(playing));
+    playBtn.setAttribute('aria-label', playing ? '정지' : '재생');
+    tt.classList.toggle('motor-on', s.motorOn);
+    for (const b of tt.querySelectorAll('.tt-speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === s.rpm));
+    record.classList.toggle('empty', s.phase !== 'loaded');
     const i = core.info();
     npTitle.textContent = i.title;
     npArtist.textContent = i.artist;
@@ -178,8 +199,8 @@ export function createTurntable(root, player) {
   let lastDraw = null;
   function draw(album, cover, design, durations) {
     lastDraw = [album, cover, design, durations];
-    const shown = disc.offsetWidth * (window.devicePixelRatio || 1);
-    const px = shown > 0 ? Math.min(1024, Math.max(256, Math.round(shown))) : 1024;
+    const shown = record.offsetWidth * (window.devicePixelRatio || 1);
+    const px = shown > 0 ? Math.min(1400, Math.max(256, Math.round(shown))) : 1024;
     if (canvas.width !== px) canvas.width = canvas.height = px;
     renderVinyl(canvas, album, design, cover, durations);
   }

@@ -1,5 +1,5 @@
-// The first screen: a wooden crate of record sleeves you flip through and pull one from.
-import { clampIndex, stepFromWheel, stepFromSwipe, sleeveTransform } from './crate-math.js';
+// The first screen: record sleeves in a cover flow. Flip through them and pull one out.
+import { clampIndex, stepFromWheel, stepFromSwipe, coverflowTransform } from './crate-math.js';
 
 const PICK_MS = 420;
 const WHEEL_GAP_MS = 250;
@@ -38,14 +38,11 @@ export function createCrate(root, albums, { onPick }) {
   next.setAttribute('aria-label', '다음 레코드');
   next.innerHTML = chevron('M9 5l7 7-7 7');
 
-  const box = el('div', 'crate-box');
-  const list = el('div', 'sleeves');
-  list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', '레코드');
-  list.tabIndex = 0;
-  const front = el('div', 'crate-front');
-  front.setAttribute('aria-hidden', 'true');
-  box.append(list, front);
+  const box = el('div', 'coverflow');
+  box.setAttribute('role', 'listbox');
+  box.setAttribute('aria-label', '레코드');
+  box.tabIndex = 0;
+  const list = box;
 
   const caption = el('div', 'crate-caption');
   caption.setAttribute('aria-live', 'polite');
@@ -53,7 +50,7 @@ export function createCrate(root, albums, { onPick }) {
   const capMeta = el('p', 'crate-meta');
   caption.append(capTitle, capMeta);
 
-  stage.append(prev, box, next);
+  stage.append(box, prev, next);
   root.append(stage, caption);
 
   const cards = albums.map((album, i) => {
@@ -87,13 +84,12 @@ export function createCrate(root, albums, { onPick }) {
   let picking = false;
 
   function layout() {
-    // the stacking offsets are tuned for a 300px sleeve; bigger sleeves peek out further
-    const k = Math.max(1, (cards[0].offsetWidth || 300) / 300) * 1.5;
+    const size = cards[0].offsetWidth || 300;
     cards.forEach((card, i) => {
-      const t = sleeveTransform(i - index);
-      card.style.transform = `translate3d(0, ${t.y * k}px, ${t.z * k}px) rotateX(${t.rotX}deg)`;
+      const t = coverflowTransform(i - index, size);
+      card.style.transform = `translate3d(${t.x}px, 0, ${t.z}px) rotateY(${t.rotY}deg)`;
       card.style.opacity = t.opacity;
-      card.style.zIndex = String(albums.length - Math.abs(i - index));
+      card.style.zIndex = String(t.zIndex);
       card.style.pointerEvents = t.opacity ? '' : 'none';
       const on = i === index;
       card.classList.toggle('is-front', on);
@@ -102,7 +98,7 @@ export function createCrate(root, albums, { onPick }) {
     list.setAttribute('aria-activedescendant', cards[index].id);
     const a = albums[index];
     capTitle.textContent = a.title;
-    capMeta.textContent = [a.artist, `${a.tracks.length}곡`].filter(Boolean).join('  ·  ');
+    capMeta.textContent = [a.artist, `${a.tracks.length}곡`].filter(Boolean).join(' · ');
     prev.disabled = index === 0;
     next.disabled = index === albums.length - 1;
   }
@@ -194,7 +190,7 @@ export function createCrate(root, albums, { onPick }) {
     },
     setTint(id, color) {
       const i = albums.findIndex((a) => a.id === id);
-      if (i >= 0) cards[i].style.setProperty('--vinyl', color);
+      if (i >= 0) cards[i].style.setProperty('--vinyl-label', color);
     },
   };
 }
