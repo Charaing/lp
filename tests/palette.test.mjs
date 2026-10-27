@@ -35,3 +35,29 @@ test('pickStyle is deterministic and never picture for monochrome', () => {
   assert.equal(pickStyle(7, ['#ff0000']), pickStyle(7, ['#ff0000']));
   for (let s = 0; s < 50; s++) assert.notEqual(pickStyle(s, ['#808080', '#7a7a7a']), 'picture');
 });
+
+import { deckColors, rgbToHsl as hsl, hexToRgb as rgb } from '../js/palette.js';
+const L = (hex) => hsl(...rgb(hex))[2];
+const H = (hex) => hsl(...rgb(hex))[0];
+
+test('deckColors: a dark grey cover gets a graphite deck', () => {
+  assert.equal(deckColors(['#121212', '#333333']).body, '#3a3a3c');
+});
+
+test('deckColors: a light grey cover gets a cream deck', () => {
+  assert.equal(deckColors(['#e9e9e9', '#cfcfcf']).body, '#ece6da');
+});
+
+test('deckColors: an orange cover gets an orange deck in a pleasant lightness range', () => {
+  const c = deckColors(['#ef7a2e', '#ffffff']);
+  assert.ok(H(c.body) >= 15 && H(c.body) <= 45, `hue ${H(c.body)}`);
+  assert.ok(L(c.body) >= 0.5 - 1e-6 && L(c.body) <= 0.66 + 1e-6, `lightness ${L(c.body)}`);
+});
+
+test('deckColors: the background is very light and the ink contrasts with the deck', () => {
+  for (const p of [['#121212'], ['#e9e9e9'], ['#ef7a2e'], ['#1d3b8a'], []]) {
+    const c = deckColors(p);
+    assert.ok(L(c.bg) >= 0.9, `bg ${c.bg}`);
+    assert.ok(Math.abs(L(c.ink) - L(c.body)) > 0.4, `ink ${c.ink} on ${c.body}`);
+  }
+});

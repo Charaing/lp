@@ -1,10 +1,10 @@
 // Draws each album's record onto a canvas. Same album id → same record.
-import { hashSeed, mulberry32, extractPalette, pickStyle, hexToRgb, rgbToHsl, toHex } from './palette.js';
+import { hashSeed, mulberry32, extractPalette, hexToRgb, rgbToHsl, toHex } from './palette.js';
+import { defaultStyle } from './vinyl-style.js';
 import { GROOVE, gapRadii } from './timeline.js';
 import { noise3, fbm3 } from './noise.js';
 
-const LABEL = 0.33;
-const BASIC = ['solid', 'translucent', 'marble', 'splatter'];
+const LABEL = 0.36;
 
 export function loadCover(src) {
   if (!src) return Promise.resolve(null);
@@ -43,15 +43,15 @@ export function designFor(album, cover) {
   const seed = hashSeed(album.id);
   const rand = mulberry32(seed ^ 0x9e3779b9);
   const palette = cover ? coverPalette(cover) : [];
-  let style = album.vinyl?.style ?? (cover ? pickStyle(seed, palette) : BASIC[Math.floor(rand() * BASIC.length)]);
-  if (style === 'picture' && !cover) style = 'solid';
+  let style = defaultStyle(album);
+  if (style === 'picture' && !cover) style = 'black';
 
   const hue = rand() * 360;
-  const base = album.vinyl?.color ?? palette[0] ?? toHexFromHsl(hue, 0.55, 0.32);
+  const base = style === 'black' ? '#111010' : album.vinyl?.color ?? palette[0] ?? toHexFromHsl(hue, 0.55, 0.32);
   const accent = album.vinyl?.accent ?? palette.find((p, i) => i > 0 && distance(p, base) > 90) ?? toHexFromHsl((hue + 140) % 360, 0.6, 0.62);
   const labelColor = album.label?.color ?? palette[2] ?? accent;
   const labelText = album.label?.text ?? readableOn(labelColor);
-  return { style, base, accent, labelColor, labelText, seed };
+  return { style, base, accent, labelColor, labelText, seed, palette };
 }
 
 function distance(a, b) {
@@ -236,6 +236,17 @@ export function renderVinyl(canvas, album, design, cover, durations) {
     const g = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
     g.addColorStop(0, shade(design.base, 0.12));
     g.addColorStop(1, shade(design.base, -0.08));
+    ctx.fillStyle = g;
+    ctx.fillRect(-R, -R, size, size);
+  }
+  if (design.style === 'black') {
+    // pressed vinyl isn't flat black: the groove bands catch a little more light than the land between them
+    const g = ctx.createRadialGradient(0, 0, LABEL * R, 0, 0, R);
+    g.addColorStop(0, '#1b1a1a');
+    g.addColorStop(0.18, '#0c0b0b');
+    g.addColorStop(0.55, '#141313');
+    g.addColorStop(0.92, '#0d0c0c');
+    g.addColorStop(1, '#1a1919');
     ctx.fillStyle = g;
     ctx.fillRect(-R, -R, size, size);
   }

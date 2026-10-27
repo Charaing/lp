@@ -85,3 +85,32 @@ export function pickStyle(seed, palette) {
   if (colorfulness(palette) >= 0.5 && r < 0.3) return 'picture';
   return BASIC_STYLES[Math.floor(r2 * BASIC_STYLES.length)];
 }
+
+export function hslToHex(h, s, l) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => 255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))));
+  return toHex(f(0), f(8), f(4));
+}
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function luminance(hex) {
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const [r, g, b] = hexToRgb(hex).map(lin);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// The turntable takes its colour from the cover: greys become cream or graphite,
+// anything colourful becomes a calm, mid-light version of that colour.
+export function deckColors(palette) {
+  const first = palette[0];
+  if (!first) return { body: '#ece6da', bg: '#f3f1ec', ink: '#1c1a18' };
+  const [h, s, l] = rgbToHsl(...hexToRgb(first));
+  const grey = s < 0.15;
+  const body = grey ? (l > 0.5 ? '#ece6da' : '#3a3a3c') : hslToHex(h, clamp(s, 0.45, 0.85), clamp(l, 0.5, 0.66));
+  const bg = hslToHex(h, grey ? 0.06 : Math.min(0.3, s * 0.25), 0.94);
+  const bodyL = rgbToHsl(...hexToRgb(body))[2];
+  const ink = luminance(body) > 0.3 || bodyL >= 0.52 ? '#1c1a18' : '#f4efe6';
+  return { body, bg, ink };
+}
