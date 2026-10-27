@@ -8,7 +8,6 @@ export const DEG_PER_SEC = { 33: 200, 45: 270 };
 const NEEDLE_DROP_MS = 350;
 const LIFT_MS = 350;
 const SWAP_MS = 380;
-const RUNOUT = 0.37;
 
 export const fmt = (sec) => {
   const t = Math.max(0, Math.floor(sec || 0));
@@ -22,6 +21,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     album: null, phase: 'empty', // 'empty' | 'swapping' | 'loaded'
     motorOn: false, rpm: 33, speed: 0, rotation: 0,
     angle: ARM.rest, lift: 1, needleDown: false, dragging: false, ended: false, audible: false,
+    groove: GROOVE, // where the grooves are on this record (changes with size and shape)
   };
   let tween = null, liftAnim = null, dropTimer = 0, mountToken = 0, pendingR = null;
   const listeners = new Set();
@@ -48,7 +48,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
 
   // The needle always starts the track it lands on from the top.
   function seekToTrackUnder(r) {
-    player.seek(trackStartAt(player.durations, radiusToTime(r, player.total)));
+    player.seek(trackStartAt(player.durations, radiusToTime(r, player.total, s.groove)));
   }
 
   function dropNeedleAt(r) {
@@ -76,6 +76,16 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     await tweenTo(ARM.rest);
   }
 
+  function setGroove(groove) {
+    s.groove = groove;
+    changed();
+  }
+
+  // the arm can swing in as far as just past the run-out of this record
+  function maxAngle() {
+    return angleForRadius(s.groove.inner - 0.04);
+  }
+
   function startDrag() {
     s.dragging = true;
     tween = null;
@@ -84,14 +94,14 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
   }
 
   function dragTo(angle) {
-    if (s.dragging) s.angle = angle;
+    if (s.dragging) s.angle = Math.min(angle, maxAngle());
   }
 
   function endDrag() {
     if (!s.dragging) return;
     s.dragging = false;
     const r = radiusForAngle(s.angle);
-    if (s.album && r <= 1) dropNeedleAt(r);
+    if (s.album && r <= s.groove.outer + 0.02) dropNeedleAt(r);
     else returnToRest();
     changed();
   }
@@ -100,8 +110,8 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     if (!s.album) return;
     if (!s.needleDown) {
       setMotor(true);
-      await tweenTo(angleForRadius(GROOVE.outer));
-      dropNeedleAt(GROOVE.outer);
+      await tweenTo(angleForRadius(s.groove.outer));
+      dropNeedleAt(s.groove.outer);
       return;
     }
     setMotor(!s.motorOn);
@@ -128,7 +138,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     if (!s.needleDown) return;
     s.ended = true;
     s.audible = false;
-    s.angle = angleForRadius(RUNOUT);
+    s.angle = angleForRadius(s.groove.inner - 0.03);
     changed();
   });
 
@@ -147,7 +157,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
       if (k === 1) { const done = tween.resolve; tween = null; done(); }
     } else if (s.needleDown && !s.dragging && !s.ended && player.total > 0) {
       // follows the music, so after the page was hidden the arm jumps straight to where playback is
-      s.angle = angleForRadius(timeToRadius(player.time, player.total));
+      s.angle = angleForRadius(timeToRadius(player.time, player.total, s.groove));
     }
 
     if (liftAnim) {
@@ -237,7 +247,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     if (!s.album) return;
     if (!s.needleDown || s.ended) {
       tween = null;
-      s.angle = angleForRadius(GROOVE.outer);
+      s.angle = angleForRadius(s.groove.outer);
       setNeedle(true);
       s.ended = false;
       player.seek(0);
@@ -257,7 +267,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
 
   return {
     state: s,
-    tick, idle, info,
+    tick, idle, info, setGroove, maxAngle,
     startDrag, dragTo, endDrag,
     setMotor, toggleMotor: () => setMotor(!s.motorOn), setRpm, togglePlay, skip,
     remotePlay, remotePause, mount, eject,

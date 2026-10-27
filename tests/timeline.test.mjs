@@ -62,3 +62,11 @@ test('trackStartAt skips failed tracks and handles unknown lengths', () => {
   assert.equal(trackStartAt([30, 0, 50], 30), 30);
   assert.equal(trackStartAt([0, 0, 0], 5), 0);
 });
+
+test('radiusToTime and timeToRadius use a given groove', () => {
+  const g = { outer: 0.5, inner: 0.2 };
+  assert.ok(Math.abs(radiusToTime(0.35, 100, g) - 50) < 1e-9);
+  assert.ok(Math.abs(timeToRadius(100, 100, g) - 0.2) < 1e-9);
+  assert.equal(gapRadii([50, 50], g).length, 1);
+  assert.ok(Math.abs(gapRadii([50, 50], g)[0] - 0.35) < 1e-9);
+});

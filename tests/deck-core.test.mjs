@@ -134,3 +134,26 @@ test('eject lets go of the album so the lock screen can clear', async () => {
   assert.equal(player.album, null);
   assert.equal(unloaded, true);
 });
+
+test('on a 7-inch record the needle still starts the track under it', async () => {
+  const { player, core } = await mounted();
+  core.setGroove({ outer: 0.5568, inner: 0.232 });
+  core.setMotor(true);
+  drop(core, (0.5568 + 0.232) / 2 - 0.01); // a bit past halfway → track 2
+  await sleep(450);
+  assert.equal(player.time, 10);
+});
+
+test('dropping on the mat around a small record sends the arm back to rest', async () => {
+  const { core } = await mounted();
+  core.setGroove({ outer: 0.5568, inner: 0.232 });
+  drop(core, 0.8);
+  await sleep(450);
+  assert.equal(core.state.needleDown, false);
+});
+
+test('maxAngle lets the arm reach the run-out of a small record', async () => {
+  const { core } = await mounted();
+  core.setGroove({ outer: 0.5568, inner: 0.232 });
+  assert.ok(Math.abs(core.maxAngle() - angleForRadius(0.192)) < 1e-9);
+});

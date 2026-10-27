@@ -5,15 +5,15 @@ export const GROOVE = { outer: 0.96, inner: 0.40 };
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-export function radiusToTime(r, total) {
+export function radiusToTime(r, total, groove = GROOVE) {
   if (!(total > 0)) return 0;
-  const f = (GROOVE.outer - clamp(r, GROOVE.inner, GROOVE.outer)) / (GROOVE.outer - GROOVE.inner);
+  const f = (groove.outer - clamp(r, groove.inner, groove.outer)) / (groove.outer - groove.inner);
   return f * total;
 }
 
-export function timeToRadius(t, total) {
-  if (!(total > 0)) return GROOVE.outer;
-  return GROOVE.outer - (clamp(t, 0, total) / total) * (GROOVE.outer - GROOVE.inner);
+export function timeToRadius(t, total, groove = GROOVE) {
+  if (!(total > 0)) return groove.outer;
+  return groove.outer - (clamp(t, 0, total) / total) * (groove.outer - groove.inner);
 }
 
 export function locate(durations, t) {
@@ -33,9 +33,9 @@ export function startOf(durations, index) {
   return durations.slice(0, index).reduce((a, d) => a + d, 0);
 }
 
-export function gapRadii(durations) {
+export function gapRadii(durations, groove = GROOVE) {
   const total = durations.reduce((a, d) => a + d, 0);
-  return durations.slice(1).map((_, i) => timeToRadius(startOf(durations, i + 1), total));
+  return durations.slice(1).map((_, i) => timeToRadius(startOf(durations, i + 1), total, groove));
 }
 
 // Where a needle dropped at time t starts playing: the beginning of that track.

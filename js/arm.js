@@ -28,8 +28,8 @@ export function needlePoint(deg) {
 
 export const ARM = { rest: 90, max: angleForRadius(0.36) };
 
-export function clampAngle(deg) {
+export function clampAngle(deg, max = ARM.max) {
   const a = ((deg % 360) + 360) % 360;
   if (a > 270 || a < ARM.rest) return ARM.rest;
-  return Math.min(ARM.max, a);
+  return Math.min(max, a);
 }

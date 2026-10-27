@@ -25,3 +25,8 @@ test('clampAngle keeps the arm between rest and just past the run-out', () => {
   close(clampAngle(120), 120);
   assert.ok(radiusForAngle(ARM.max) > 0.33, 'needle never lands on the label');
 });
+
+test('clampAngle honours a custom maximum', () => {
+  assert.equal(clampAngle(179, 110), 110);
+  assert.equal(clampAngle(100, 110), 100);
+});
