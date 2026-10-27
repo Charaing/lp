@@ -2,9 +2,19 @@
 // album, a black record with the cover as its label, a silver tonearm and three round keys.
 // Behaviour lives in deck-core.js; this file draws it and turns input into calls on the core.
 import { PLINTH, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
-import { loadCover, designFor, renderVinyl } from './vinyl.js';
-import { deckColors } from './palette.js';
+import { loadCover, designFor, renderVinyl, coverPalette } from './vinyl.js';
+import { deckColors, rgbToHsl, hexToRgb } from './palette.js';
 import { createDeckCore, bindDeckKeys } from './deck-core.js';
+import { defaultLook, mergeLook, normalizeLook, lookDiff, albumJsonSnippet, grooveFor, SIZE_FACTOR, INSCRIBED } from './look.js';
+import { createLookStore } from './look-store.js';
+import { createCustomizer } from './customizer.js';
+
+// tonearm metal: tube gradient stops and pivot dome stops
+const ARM_METAL = {
+  silver: { tube: ['#8d9190', '#ffffff', '#c9cccb', '#7c807f'], dome: ['#ffffff', '#c3c6c5', '#6f7372'] },
+  gold: { tube: ['#7d5f26', '#fff2c8', '#d9b566', '#6e5220'], dome: ['#fff6d8', '#d4b062', '#6e5220'] },
+  black: { tube: ['#0b0b0b', '#5a5a5a', '#262626', '#0a0a0a'], dome: ['#6a6a6a', '#262626', '#050505'] },
+};
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -72,7 +82,7 @@ const icon = {
   next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
 };
 
-export function createTurntable(root, player) {
+export function createTurntable(root, player, { notify = () => {} } = {}) {
   root.replaceChildren();
   const tt = document.createElement('div');
   tt.className = 'tt';
@@ -118,16 +128,78 @@ export function createTurntable(root, player) {
   arm.setAttribute('aria-valuemin', '0');
 
   const screen = root.closest('.deck-screen');
+  const store = createLookStore();
+  const sheen = q('.tt-sheen');
+  const tubeStops = armLayer.querySelectorAll('#tt-tube stop'), domeStops = armLayer.querySelectorAll('#tt-dome stop');
+  let current = null; // { album, cover, palette, base, look }
+
+  // Everything a look changes besides the record drawing itself.
+  function applyLook(c) {
+    const { look, palette } = c;
+    let colors = deckColors(palette);
+    if (look.deck.body !== 'auto') {
+      const l = rgbToHsl(...hexToRgb(look.deck.body))[2];
+      colors = { body: look.deck.body, bg: deckColors([look.deck.body]).bg, ink: l >= 0.52 ? '#1c1a18' : '#f4efe6' };
+    }
+    for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
+      (screen ?? root).style.setProperty(k, v);
+    }
+    core.setGroove(grooveFor(look));
+    // the reflection sits over the grooved part of this record only
+    record.classList.toggle('shaped', look.vinyl.shape !== 'round');
+    record.style.setProperty('--rec', `${SIZE_FACTOR[look.vinyl.size] * 100}%`);
+    const span = SIZE_FACTOR[look.vinyl.size] * INSCRIBED[look.vinyl.shape];
+    sheen.style.setProperty('--span', `${span * 100}%`);
+    sheen.style.setProperty('--hole', `${(look.label.size / INSCRIBED[look.vinyl.shape]) * 100}%`);
+    sheen.style.opacity = String(Math.min(1.6, look.finish.gloss / 0.6));
+    const metal = ARM_METAL[look.deck.arm];
+    tubeStops.forEach((st, i) => st.setAttribute('stop-color', metal.tube[i]));
+    domeStops.forEach((st, i) => st.setAttribute('stop-color', metal.dome[i]));
+  }
+
+  let saveTimer = 0, drawQueued = false;
+  function lookChanged(look) {
+    current.look = look;
+    current.design = designFor(current.album, current.cover, look, current.palette);
+    applyLook(current);
+    if (!drawQueued) {
+      drawQueued = true;
+      requestAnimationFrame(() => {
+        drawQueued = false;
+        if (current && lastDraw) draw(current.album, current.cover, current.design, lastDraw[3]);
+      });
+    }
+    clearTimeout(saveTimer);
+    const { album, base } = current;
+    saveTimer = setTimeout(() => store.save(album.id, lookDiff(look, base)), 200);
+  }
+
+  const customizer = createCustomizer(screen ?? root, {
+    change: lookChanged,
+    reset() {
+      if (!current) return;
+      store.clear(current.album.id);
+      lookChanged(current.base);
+      clearTimeout(saveTimer);
+      store.clear(current.album.id);
+      customizer.refresh(current.base);
+    },
+    copy: () => albumJsonSnippet(current.album, current.look, normalizeLook({})),
+    notify,
+  });
+
   const core = createDeckCore(player, {
     setHint(text) { hint.textContent = text; hint.hidden = !text; },
     async loadArt(album) {
       const cover = await loadCover(album.cover);
-      const design = designFor(album, cover);
-      const colors = deckColors(design.palette);
+      const palette = coverPalette(cover);
+      const base = defaultLook(album, palette, !!cover);
+      const look = mergeLook(base, store.load(album.id));
+      const design = designFor(album, cover, look, palette);
       const apply = () => {
-        for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
-          (screen ?? root).style.setProperty(k, v);
-        }
+        current = { album, cover, palette, base, look, design };
+        applyLook(current);
+        customizer.attach({ album, look, palette, available: store.available });
       };
       return { cover, design, apply };
     },
@@ -140,7 +212,7 @@ export function createTurntable(root, player) {
     const m = armLayer.getScreenCTM();
     if (!m) return s.angle;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return clampAngle((Math.atan2(p.y - PIVOT.y, p.x - PIVOT.x) * 180) / Math.PI);
+    return clampAngle((Math.atan2(p.y - PIVOT.y, p.x - PIVOT.x) * 180) / Math.PI, core.maxAngle());
   }
   grab.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -214,7 +286,11 @@ export function createTurntable(root, player) {
 
   return {
     mount: core.mount,
-    eject: core.eject,
+    eject() {
+      current = null;
+      customizer.detach();
+      core.eject();
+    },
     remotePlay: core.remotePlay,
     remotePause: core.remotePause,
     skip: core.skip,

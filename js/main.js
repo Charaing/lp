@@ -30,7 +30,7 @@ player.addEventListener('error', (e) => toast(`재생할 수 없는 트랙: ${e.
 
 const crateScreen = document.getElementById('crate-screen');
 const deckScreen = document.getElementById('deck-screen');
-const deck = createTurntable(document.getElementById('deck'), player);
+const deck = createTurntable(document.getElementById('deck'), player, { notify: toast });
 connectMediaSession(player, deck);
 
 const albums = await loadAlbums();

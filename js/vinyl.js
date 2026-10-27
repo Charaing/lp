@@ -1,10 +1,10 @@
-// Draws each album's record onto a canvas. Same album id → same record.
+// Draws a record onto a canvas from its look (look.js): pressing, colours, shape, size,
+// label and finish. The canvas covers a full 12-inch record; smaller ones sit in the middle.
+// Same album id → same marbling, splatter and glitter.
 import { hashSeed, mulberry32, extractPalette, hexToRgb, rgbToHsl, toHex } from './palette.js';
-import { defaultStyle } from './vinyl-style.js';
-import { GROOVE, gapRadii } from './timeline.js';
+import { gapRadii } from './timeline.js';
 import { noise3, fbm3 } from './noise.js';
-
-const LABEL = 0.36;
+import { defaultLook, grooveFor, SIZE_FACTOR } from './look.js';
 
 export function loadCover(src) {
   if (!src) return Promise.resolve(null);
@@ -17,7 +17,8 @@ export function loadCover(src) {
   });
 }
 
-function coverPalette(cover) {
+export function coverPalette(cover) {
+  if (!cover) return [];
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -32,26 +33,9 @@ function shade(hex, dl) {
   return hsl(h, s, Math.min(0.92, Math.max(0.06, l + dl)));
 }
 
-function readableOn(color) {
-  const c = document.createElement('canvas').getContext('2d');
-  c.fillStyle = color;
-  const [r, g, b] = hexToRgb(c.fillStyle.startsWith('#') ? c.fillStyle : '#808080');
+function readableOn(hex) {
+  const [r, g, b] = hexToRgb(hex);
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#1b1410' : '#f6ecd6';
-}
-
-export function designFor(album, cover) {
-  const seed = hashSeed(album.id);
-  const rand = mulberry32(seed ^ 0x9e3779b9);
-  const palette = cover ? coverPalette(cover) : [];
-  let style = defaultStyle(album);
-  if (style === 'picture' && !cover) style = 'black';
-
-  const hue = rand() * 360;
-  const base = style === 'black' ? '#111010' : album.vinyl?.color ?? palette[0] ?? toHexFromHsl(hue, 0.55, 0.32);
-  const accent = album.vinyl?.accent ?? palette.find((p, i) => i > 0 && distance(p, base) > 90) ?? toHexFromHsl((hue + 140) % 360, 0.6, 0.62);
-  const labelColor = album.label?.color ?? palette[2] ?? accent;
-  const labelText = album.label?.text ?? readableOn(labelColor);
-  return { style, base, accent, labelColor, labelText, seed, palette };
 }
 
 function distance(a, b) {
@@ -59,24 +43,74 @@ function distance(a, b) {
   return Math.hypot(r1 - r2, g1 - g2, b1 - b2);
 }
 
-function toHexFromHsl(h, s, l) {
+function hexFromHsl(h, s, l) {
   const k = (n) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
   const f = (n) => 255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))));
   return toHex(f(0), f(8), f(4));
 }
 
-function drawCoverCircle(ctx, cover, cx, cy, r) {
+// Turns a look into the concrete colours to paint with. Without a look, the album's default one.
+export function designFor(album, cover, look, palette = coverPalette(cover)) {
+  const lk = look ?? defaultLook(album, palette, !!cover);
+  const seed = hashSeed(album.id);
+  const rand = mulberry32(seed ^ 0x9e3779b9);
+  const hue = rand() * 360;
+  let style = lk.vinyl.style;
+  if (style === 'picture' && !cover) style = 'black';
+  const base = style === 'black' ? '#111010' : lk.vinyl.color ?? palette[0] ?? hexFromHsl(hue, 0.55, 0.32);
+  const accent = lk.vinyl.accent ?? palette.find((p, i) => i > 0 && distance(p, base) > 90) ?? hexFromHsl((hue + 140) % 360, 0.6, 0.62);
+  const labelColor = lk.label.color ?? palette[2] ?? accent;
+  const labelText = lk.label.text ?? readableOn(labelColor);
+  const labelMode = lk.label.mode === 'cover' && !cover ? 'text' : lk.label.mode;
+  return { look: lk, style, base, accent, labelColor, labelText, labelMode, seed, palette };
+}
+
+// ---- shapes (r = record radius) ----
+
+function shapePath(ctx, shape, r) {
+  ctx.beginPath();
+  if (shape === 'hexagon') {
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i;
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+  } else if (shape === 'star') {
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (Math.PI / 5) * i, rr = i % 2 ? r * 0.6 : r;
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+  } else if (shape === 'flower') {
+    for (let i = 0; i <= 360; i++) {
+      const a = (i * Math.PI) / 180, rr = r * (0.9 + 0.1 * Math.cos(8 * a));
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+  } else if (shape === 'heart') {
+    // two lobes and a point, drawn inside the record's circle with the spindle near its middle
+    ctx.moveTo(0, r * 0.98);
+    ctx.bezierCurveTo(-r * 0.25, r * 0.7, -r * 1.0, r * 0.25, -r * 0.92, -r * 0.3);
+    ctx.bezierCurveTo(-r * 0.85, -r * 0.82, -r * 0.18, -r * 0.92, 0, -r * 0.55);
+    ctx.bezierCurveTo(r * 0.18, -r * 0.92, r * 0.85, -r * 0.82, r * 0.92, -r * 0.3);
+    ctx.bezierCurveTo(r * 1.0, r * 0.25, r * 0.25, r * 0.7, 0, r * 0.98);
+  } else {
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+  }
+  ctx.closePath();
+}
+
+function drawCoverCircle(ctx, cover, r) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.clip();
   const s = Math.max((r * 2) / cover.width, (r * 2) / cover.height);
-  ctx.drawImage(cover, cx - (cover.width * s) / 2, cy - (cover.height * s) / 2, cover.width * s, cover.height * s);
+  ctx.drawImage(cover, (-cover.width * s) / 2, (-cover.height * s) / 2, cover.width * s, cover.height * s);
   ctx.restore();
 }
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// ---- pressings ----
 
 // Marbled vinyl: two pigments folded into each other and dragged around by the press,
 // so the colour pockets stretch along the circumference instead of looking sprayed on.
@@ -147,69 +181,85 @@ function splatter(ctx, d, R, rand) {
   }
 }
 
-function texture(ctx, d, R, rand) {
-  if (d.style === 'marble') marble(ctx, d, R);
-  else if (d.style === 'splatter') splatter(ctx, d, R, rand);
+// Glitter vinyl: hundreds of tiny flakes that catch the light at different strengths.
+function glitter(ctx, d, R, rand) {
+  for (let i = 0; i < 420; i++) {
+    const a = rand() * Math.PI * 2, r = R * Math.sqrt(rand());
+    const s = (0.4 + rand() * 1.2) * Math.max(1, R / 300);
+    ctx.globalAlpha = 0.35 + rand() * 0.65;
+    ctx.fillStyle = rand() < 0.25 ? '#ffffff' : rand() < 0.5 ? shade(d.accent, 0.25) : d.accent;
+    ctx.fillRect(Math.cos(a) * r - s / 2, Math.sin(a) * r - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1;
 }
 
-function grooves(ctx, R, rand, durations) {
-  const inner = GROOVE.inner * R, outer = GROOVE.outer * R;
+function pressing(ctx, d, R, cover, rand) {
+  const { style } = d;
+  if (style === 'black') {
+    // pressed vinyl isn't flat black: the groove bands catch a little more light than the land between them
+    const g = ctx.createRadialGradient(0, 0, 0.36 * R, 0, 0, R);
+    g.addColorStop(0, '#1b1a1a'); g.addColorStop(0.18, '#0c0b0b'); g.addColorStop(0.55, '#141313');
+    g.addColorStop(0.92, '#0d0c0c'); g.addColorStop(1, '#1a1919');
+    ctx.fillStyle = g;
+  } else if (style === 'gradient') {
+    const g = ctx.createConicGradient(-Math.PI / 2, 0, 0);
+    g.addColorStop(0, d.base); g.addColorStop(0.5, d.accent); g.addColorStop(1, d.base);
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = d.base;
+  }
+  if (style === 'translucent') ctx.globalAlpha = 0.72;
+  ctx.fillRect(-R * 1.1, -R * 1.1, R * 2.2, R * 2.2);
+  if (style === 'translucent') {
+    const g = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
+    g.addColorStop(0, shade(d.base, 0.12));
+    g.addColorStop(1, shade(d.base, -0.08));
+    ctx.fillStyle = g;
+    ctx.fillRect(-R * 1.1, -R * 1.1, R * 2.2, R * 2.2);
+  }
+  ctx.globalAlpha = 1;
+  if (style === 'half') {
+    ctx.save();
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = d.accent;
+    ctx.fillRect(-R * 1.1, 0, R * 2.2, R * 1.1);
+    ctx.restore();
+  }
+  if (style === 'picture' && cover) drawCoverCircle(ctx, cover, R);
+  if (style === 'marble') marble(ctx, d, R);
+  if (style === 'splatter') splatter(ctx, d, R, rand);
+  if (style === 'glitter') glitter(ctx, d, R, rand);
+}
+
+function grooves(ctx, D, rand, durations, groove, strength) {
+  const inner = groove.inner * D, outer = groove.outer * D;
+  const k = 0.3 + 1.3 * strength;
   // Roughly one groove line per device pixel; fainter lines read as a fine sheen, not stripes.
-  const step = Math.max(1, R / 420);
+  const step = Math.max(1, D / 420);
   ctx.lineWidth = step * 0.6;
   for (let r = inner; r < outer; r += step) {
-    ctx.strokeStyle = rand() < 0.55 ? `rgba(0,0,0,${0.05 + rand() * 0.06})` : `rgba(255,255,255,${0.012 + rand() * 0.025})`;
+    ctx.strokeStyle = rand() < 0.55 ? `rgba(0,0,0,${(0.05 + rand() * 0.06) * k})` : `rgba(255,255,255,${(0.012 + rand() * 0.025) * k})`;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
   }
   // Silent bands between tracks are wider and smoother, so they catch the light.
-  const gaps = durations.length > 1 && durations.every((d) => d > 0) ? gapRadii(durations)
-    : Array.from({ length: Math.max(0, durations.length - 1) }, (_, i) => GROOVE.outer - ((i + 1) / durations.length) * (GROOVE.outer - GROOVE.inner));
+  const gaps = durations.length > 1 && durations.every((d) => d > 0) ? gapRadii(durations, groove)
+    : Array.from({ length: Math.max(0, durations.length - 1) }, (_, i) => groove.outer - ((i + 1) / durations.length) * (groove.outer - groove.inner));
   for (const g of gaps) {
-    ctx.lineWidth = R * 0.008;
-    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath(); ctx.arc(0, 0, g * R, 0, Math.PI * 2); ctx.stroke();
-    ctx.lineWidth = R * 0.0025;
-    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-    ctx.beginPath(); ctx.arc(0, 0, g * R + R * 0.0045, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = D * 0.008;
+    ctx.strokeStyle = `rgba(0,0,0,${0.22 * k})`;
+    ctx.beginPath(); ctx.arc(0, 0, g * D, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = D * 0.0025;
+    ctx.strokeStyle = `rgba(255,255,255,${0.1 * k})`;
+    ctx.beginPath(); ctx.arc(0, 0, g * D + D * 0.0045, 0, Math.PI * 2); ctx.stroke();
   }
-  // lead-in edge and smooth run-out
-  ctx.lineWidth = R * 0.03;
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.985, 0, Math.PI * 2); ctx.stroke();
-  ctx.lineWidth = R * 0.002;
+  // lead-in and smooth run-out bands
+  ctx.lineWidth = D * 0.002;
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  for (const r of [LABEL + 0.02, LABEL + 0.045]) { ctx.beginPath(); ctx.arc(0, 0, r * R, 0, Math.PI * 2); ctx.stroke(); }
-}
-
-function label(ctx, album, d, cover, R) {
-  const r = LABEL * R;
-  if (d.style === 'picture') {
-    ctx.lineWidth = R * 0.006;
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.stroke();
-    return;
+  for (const r of [outer + D * 0.012, inner - D * 0.015, inner - D * 0.03]) {
+    if (r > 0) { ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke(); }
   }
-  if (cover) {
-    drawCoverCircle(ctx, cover, 0, 0, r);
-  } else {
-    ctx.fillStyle = d.labelColor;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = d.labelText;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `${R * 0.055}px "Instrument Serif", Georgia, serif`;
-    fitText(ctx, album.title, 0, -r * 0.42, r * 1.5);
-    ctx.font = `${R * 0.028}px Michroma, sans-serif`;
-    if (album.artist) fitText(ctx, album.artist, 0, r * 0.45, r * 1.3);
-    ctx.font = `${R * 0.022}px Michroma, sans-serif`;
-    ctx.fillText(`${album.rpm ?? 33} rpm`, 0, r * 0.68);
-  }
-  // pressing ring around the label
-  ctx.lineWidth = R * 0.004;
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
 }
 
 function fitText(ctx, text, x, y, max) {
@@ -218,46 +268,108 @@ function fitText(ctx, text, x, y, max) {
   ctx.fillText(t, x, y);
 }
 
+function label(ctx, album, d, cover, R) {
+  const r = d.look.label.size * R;
+  if (d.style === 'picture') {
+    ctx.lineWidth = R * 0.006;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+    return;
+  }
+  const font = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
+  if (d.labelMode === 'cover') {
+    drawCoverCircle(ctx, cover, r);
+    if (d.look.label.showTitle) {
+      // a small printed title along the bottom of the label
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(-r, r * 0.5, r * 2, r * 0.5);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `700 ${r * 0.13}px ${font}`;
+      fitText(ctx, album.title, 0, r * 0.66, r * 1.3);
+      ctx.restore();
+    }
+  } else {
+    ctx.fillStyle = d.labelColor;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    if (d.labelMode === 'text' || d.look.label.showTitle) {
+      ctx.fillStyle = d.labelText;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `800 ${r * 0.17}px ${font}`;
+      fitText(ctx, album.title, 0, -r * 0.42, r * 1.5);
+      ctx.font = `500 ${r * 0.1}px ${font}`;
+      if (album.artist) fitText(ctx, album.artist, 0, r * 0.42, r * 1.3);
+      ctx.font = `600 ${r * 0.075}px ${font}`;
+      ctx.fillText(`${album.rpm ?? 33} RPM`, 0, r * 0.66);
+    }
+  }
+  if (d.look.label.ring) {
+    ctx.lineWidth = R * 0.004;
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
 export function renderVinyl(canvas, album, design, cover, durations) {
   const ctx = canvas.getContext('2d');
-  const size = canvas.width, R = size / 2;
+  const size = canvas.width, D = size / 2; // D = a 12-inch record's radius
+  const lk = design.look;
+  const R = D * SIZE_FACTOR[lk.vinyl.size];
+  const groove = grooveFor(lk);
   const rand = mulberry32(design.seed);
   ctx.clearRect(0, 0, size, size);
   ctx.save();
-  ctx.translate(R, R);
-  ctx.beginPath();
-  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.translate(D, D);
+  shapePath(ctx, lk.vinyl.shape, R);
+  ctx.save();
   ctx.clip();
-
-  if (design.style === 'translucent') ctx.globalAlpha = 0.72;
-  ctx.fillStyle = design.base;
-  ctx.fillRect(-R, -R, size, size);
-  if (design.style === 'translucent') {
-    const g = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
-    g.addColorStop(0, shade(design.base, 0.12));
-    g.addColorStop(1, shade(design.base, -0.08));
-    ctx.fillStyle = g;
-    ctx.fillRect(-R, -R, size, size);
-  }
-  if (design.style === 'black') {
-    // pressed vinyl isn't flat black: the groove bands catch a little more light than the land between them
-    const g = ctx.createRadialGradient(0, 0, LABEL * R, 0, 0, R);
-    g.addColorStop(0, '#1b1a1a');
-    g.addColorStop(0.18, '#0c0b0b');
-    g.addColorStop(0.55, '#141313');
-    g.addColorStop(0.92, '#0d0c0c');
-    g.addColorStop(1, '#1a1919');
-    ctx.fillStyle = g;
-    ctx.fillRect(-R, -R, size, size);
-  }
-  ctx.globalAlpha = 1;
-  if (design.style === 'picture' && cover) drawCoverCircle(ctx, cover, 0, 0, R);
-  texture(ctx, design, R, rand);
-  grooves(ctx, R, rand, durations);
+  pressing(ctx, design, R, cover, rand);
+  grooves(ctx, D, rand, durations, groove, lk.finish.grooves);
   label(ctx, album, design, cover, R);
-
+  ctx.restore();
+  // a thin bevel along the edge
+  ctx.lineWidth = Math.max(1, D * 0.006);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  shapePath(ctx, lk.vinyl.shape, R - ctx.lineWidth / 2);
+  ctx.stroke();
   // spindle hole
   ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.022, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, D * 0.022, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// A small round preview of a pressing for the customizer.
+export function renderSwatch(canvas, style, base, accent, seed = 7) {
+  const ctx = canvas.getContext('2d');
+  const R = canvas.width / 2;
+  const d = { style, base: style === 'black' ? '#111010' : base, accent, seed };
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(R, R);
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.clip();
+  if (style === 'picture') {
+    const g = ctx.createLinearGradient(-R, -R, R, R);
+    g.addColorStop(0, base); g.addColorStop(1, accent);
+    ctx.fillStyle = g; ctx.fillRect(-R, -R, R * 2, R * 2);
+  } else {
+    pressing(ctx, d, R, null, mulberry32(seed));
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// Outline of a shape for the customizer's buttons.
+export function renderShapeIcon(canvas, shape, color) {
+  const ctx = canvas.getContext('2d');
+  const R = canvas.width / 2;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(R, R);
+  shapePath(ctx, shape, R * 0.9);
+  ctx.fillStyle = color;
+  ctx.fill();
   ctx.restore();
 }

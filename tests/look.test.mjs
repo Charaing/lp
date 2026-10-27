@@ -67,3 +67,9 @@ test('albumJsonSnippet gives album.json with title, artist, year and the changes
   const json = JSON.parse(albumJsonSnippet(album, normalizeLook({ vinyl: { style: 'glitter', color: '#112233' } }), base));
   assert.deepEqual(json, { title: 'Blonde', artist: 'Frank Ocean', year: 2016, vinyl: { style: 'glitter', color: '#112233' } });
 });
+
+test('numbers are kept to three decimals so copied code stays readable', () => {
+  const l = normalizeLook({ vinyl: { shape: 'heart', size: 10 }, finish: { gloss: 0.123456 } });
+  assert.equal(l.label.size, Math.round(l.label.size * 1000) / 1000);
+  assert.equal(l.finish.gloss, 0.123);
+});

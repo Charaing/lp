@@ -9,12 +9,13 @@ export const LABEL_MODES = ['cover', 'color', 'text'];
 export const ARMS = ['silver', 'gold', 'black'];
 export const SIZE_FACTOR = { 12: 1, 10: 0.83, 7: 0.58 };
 // radius of the largest circle that fits inside each shape; grooves stay inside it
-export const INSCRIBED = { round: 1, hexagon: 0.866, flower: 0.8, heart: 0.7, star: 0.55 };
+export const INSCRIBED = { round: 1, hexagon: 0.866, flower: 0.8, heart: 0.55, star: 0.55 };
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const round3 = (v) => Math.round(v * 1000) / 1000;
 
 // which values each field accepts; anything else is ignored
 const FIELDS = {
@@ -71,20 +72,20 @@ export function normalizeLook(raw) {
     },
     label: {
       mode: r.label.mode ?? 'cover',
-      size: clamp(r.label.size ?? 0.36, 0.25, Math.min(0.45, INSCRIBED[shape] * 0.7)),
+      size: round3(clamp(r.label.size ?? 0.36, 0.25, Math.min(0.45, INSCRIBED[shape] * 0.7))),
       color: r.label.color ?? null,
       text: r.label.text ?? null,
       showTitle: r.label.showTitle ?? false,
       ring: r.label.ring ?? true,
     },
-    finish: { grooves: clamp(r.finish.grooves ?? 0.5, 0, 1), gloss: clamp(r.finish.gloss ?? 0.6, 0, 1) },
+    finish: { grooves: round3(clamp(r.finish.grooves ?? 0.5, 0, 1)), gloss: round3(clamp(r.finish.gloss ?? 0.6, 0, 1)) },
     deck: { body: r.deck.body ?? 'auto', arm: r.deck.arm ?? 'silver' },
   };
   // small, pointy records: shrink the label so there is still room for grooves
   const g = grooveFor(look);
   if (g.outer - g.inner < 0.12) {
     const fit = (g.outer - 0.12) / SIZE_FACTOR[size] - 0.04;
-    look.label.size = Math.max(0.25, Math.min(look.label.size, fit));
+    look.label.size = round3(Math.max(0.25, Math.min(look.label.size, Math.floor(fit * 1000) / 1000)));
   }
   return look;
 }

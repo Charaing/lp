@@ -96,10 +96,10 @@ import { normalizeLook, mergeLook, albumJsonSnippet } from '../js/look.js';
 
 test('album.json look values pass through, invalid ones are dropped', async () => {
   const { dir } = await fixture({
-    x: { '1.mp3': 'x', 'album.json': JSON.stringify({ vinyl: { style: 'glitter', shape: 'heart', size: 7, color: '#112233' }, label: { mode: 'text', size: 0.3 }, deck: { arm: 'gold', body: 'teal' }, finish: { gloss: 9 } }) },
+    x: { '1.mp3': 'x', 'album.json': JSON.stringify({ vinyl: { style: 'glitter', shape: 'flower', size: 7, color: '#112233' }, label: { mode: 'text', size: 0.3 }, deck: { arm: 'gold', body: 'teal' }, finish: { gloss: 9 } }) },
   });
   const { albums } = await buildManifest(dir);
-  assert.deepEqual(albums[0].look, { vinyl: { style: 'glitter', color: '#112233', shape: 'heart', size: 7 }, label: { mode: 'text', size: 0.3 }, finish: { gloss: 1 }, deck: { arm: 'gold' } });
+  assert.deepEqual(albums[0].look, { vinyl: { style: 'glitter', color: '#112233', shape: 'flower', size: 7 }, label: { mode: 'text', size: 0.3 }, finish: { gloss: 1 }, deck: { arm: 'gold' } });
 });
 
 test('a copied snippet round-trips through the build', async () => {
