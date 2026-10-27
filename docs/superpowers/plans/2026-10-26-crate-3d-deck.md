@@ -268,3 +268,29 @@ test('mount draws the record twice: before and after durations are known', async
 - [ ] **Step 1:** 최종 리뷰(새 리뷰어, Review Focus 포함), 지적 사항 수정(각각 실패 테스트 먼저)
 - [ ] **Step 2:** `git push`, Pages 배포 성공 확인
 - [ ] **Step 3:** 실제 사이트에서 크레이트 → 3D 덱 → 재생 확인(새 브라우저 프로필)
+
+---
+
+## 개정 (2026-10-27): MD Vinyl 스타일 — Task 6·7을 아래로 대체
+
+스펙 "개정" 절 참고. Task 1~5 완료분은 유지.
+
+### Task 6R: 커버플로우 계산
+- `js/crate-math.js`: `sleeveTransform` → `coverflowTransform(offset, size): { x, z, rotY, opacity, zIndex }` (zIndex = 100 − |offset|). 테스트: offset 0, ±1, ±3, 6 값.
+
+### Task 7R: 덱 색·검은 바이닐
+- `js/palette.js`: `deckColors(palette): { body, bg, ink }` (hex). 테스트: 회색 어두움 → `#3a3a3c`, 회색 밝음 → `#ece6da`, 주황 팔레트 → 몸체 색상 15–45°·명도 0.50–0.66, bg 명도 ≥ 0.9, ink는 몸체와 대비.
+- `js/vinyl.js`: `defaultStyle(album) = album.vinyl?.style ?? (album.vinyl?.color ? 'solid' : 'black')` (순수, 테스트), `black` 스타일 그리기, 라벨 0.36R에 표지.
+
+### Task 8R: 세로형 레이아웃 좌표
+- `js/arm.js` 상수: PLINTH 1000×1300, DISC {380,520,430}, PIVOT {870,160}, ARM_LENGTH 600. 기존 `tests/arm.test.mjs`가 그대로 통과해야 함. `deck-geometry.js`는 `armLift`만 남기고 테스트 정리.
+
+### Task 9R: 커버플로우 첫 화면 (밝은 테마)
+- `crate.js`·CSS를 커버플로우로, 바닥 반사, 고를 때 LP 빠져나오기. 브라우저로 넘기기·고르기 흐름 재확인.
+
+### Task 10R: 위에서 본 사실적인 턴테이블
+- `turntable.js`를 새 디자인으로 다시 그림(deck-core 사용, 같은 반환 객체). 몸체·LP·고정 반사·톤암(SVG 금속, 들림 그림자)·버튼 3개+33/45·곡 정보. 덱 화면 배경 = `deckColors().bg`.
+- 확인: CDP 시나리오(고르기→바늘 끌기→곡 처음부터→정지/다음/런아웃→뒤로), 잠금 화면 버튼, 휴대폰 390×844·데스크톱 1400×900 스크린숏.
+
+### Task 11R: 마무리
+- 최종 리뷰 → 수정 → README → push → 실제 사이트 확인.
