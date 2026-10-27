@@ -3,6 +3,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeLook, lookDiff } from '../js/look.js';
 
 const AUDIO = new Set(['.mp3', '.m4a', '.ogg', '.wav', '.flac']);
 const COVERS = ['cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp'];
@@ -69,6 +70,8 @@ export async function buildManifest(albumsDir, publicPrefix = 'albums') {
       vinyl,
       label: pickColors(meta.label, ['color', 'text']),
       rpm: meta.rpm === 45 ? 45 : 33,
+      // how the record should look (customizer fields); invalid values are dropped
+      look: lookDiff(normalizeLook(meta), normalizeLook({})),
     });
   }
   return { albums, warnings };

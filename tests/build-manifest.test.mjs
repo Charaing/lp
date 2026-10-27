@@ -91,3 +91,22 @@ test('missing albums dir returns empty list', async () => {
   const { root } = await fixture({});
   assert.deepEqual((await buildManifest(join(root, 'nope'))).albums, []);
 });
+
+import { normalizeLook, mergeLook, albumJsonSnippet } from '../js/look.js';
+
+test('album.json look values pass through, invalid ones are dropped', async () => {
+  const { dir } = await fixture({
+    x: { '1.mp3': 'x', 'album.json': JSON.stringify({ vinyl: { style: 'glitter', shape: 'heart', size: 7, color: '#112233' }, label: { mode: 'text', size: 0.3 }, deck: { arm: 'gold', body: 'teal' }, finish: { gloss: 9 } }) },
+  });
+  const { albums } = await buildManifest(dir);
+  assert.deepEqual(albums[0].look, { vinyl: { style: 'glitter', color: '#112233', shape: 'heart', size: 7 }, label: { mode: 'text', size: 0.3 }, finish: { gloss: 1 }, deck: { arm: 'gold' } });
+});
+
+test('a copied snippet round-trips through the build', async () => {
+  const look = normalizeLook({ vinyl: { style: 'half', color: '#aa0000', accent: '#0000aa', shape: 'flower', size: 10 }, label: { mode: 'color', ring: false, showTitle: true }, finish: { grooves: 0.8 }, deck: { arm: 'black', body: '#123456' } });
+  const snippet = albumJsonSnippet({ title: 'T', artist: 'A', year: 2020 }, look, normalizeLook({}));
+  const { dir } = await fixture({ y: { '1.mp3': 'x', 'album.json': snippet } });
+  const { albums } = await buildManifest(dir);
+  assert.deepEqual(mergeLook(normalizeLook({}), albums[0].look), look);
+  assert.equal(albums[0].title, 'T');
+});
