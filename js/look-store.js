@@ -1,9 +1,12 @@
 // Remembers each album's record tweaks in this browser only.
 const key = (id) => `lp:look:${id}`;
 
-export function createLookStore(storage = globalThis.localStorage) {
+export function createLookStore(...args) {
+  let storage = args[0];
   let available = false;
   try {
+    // even reading window.localStorage throws when the browser blocks site data
+    if (args.length === 0) storage = globalThis.localStorage;
     storage.setItem('lp:probe', '1');
     storage.removeItem('lp:probe');
     available = true;

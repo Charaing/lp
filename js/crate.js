@@ -173,6 +173,8 @@ export function createCrate(root, albums, { onPick }) {
   });
   stage.addEventListener('pointermove', (e) => {
     if (!start) return;
+    // the button was let go outside the stage: that drag is over
+    if (e.pointerType === 'mouse' && e.buttons === 0) return endDrag(e);
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
     if (!moved && Math.hypot(dx, dy) > 10) moved = true;
     if (dragPos === null && moved && Math.abs(dx) > Math.abs(dy)) {

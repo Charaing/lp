@@ -151,7 +151,9 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     const span = SIZE_FACTOR[look.vinyl.size] * INSCRIBED[look.vinyl.shape];
     sheen.style.setProperty('--span', `${span * 100}%`);
     sheen.style.setProperty('--hole', `${(look.label.size / INSCRIBED[look.vinyl.shape]) * 100}%`);
-    sheen.style.opacity = String(Math.min(1.6, look.finish.gloss / 0.6));
+    // gloss 0–0.6 fades the reflection in, 0.6–1 makes it brighter
+    sheen.style.opacity = String(Math.min(1, look.finish.gloss / 0.6));
+    sheen.style.filter = `brightness(${1 + Math.max(0, look.finish.gloss - 0.6) * 2.5})`;
     const metal = ARM_METAL[look.deck.arm];
     tubeStops.forEach((st, i) => st.setAttribute('stop-color', metal.tube[i]));
     domeStops.forEach((st, i) => st.setAttribute('stop-color', metal.dome[i]));
@@ -203,7 +205,8 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
       };
       return { cover, design, apply };
     },
-    drawVinyl: (...args) => draw(...args),
+    // once tweaked, draw the current look even when deck-core redraws with the one it loaded
+    drawVinyl: (album, cover, design, durations) => draw(album, cover, current?.album === album ? current.design : design, durations),
   });
   const s = core.state;
 

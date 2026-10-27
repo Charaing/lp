@@ -73,3 +73,9 @@ test('numbers are kept to three decimals so copied code stays readable', () => {
   assert.equal(l.label.size, Math.round(l.label.size * 1000) / 1000);
   assert.equal(l.finish.gloss, 0.123);
 });
+
+test('albumJsonSnippet keeps a 45 rpm album at 45', () => {
+  const base = normalizeLook({});
+  assert.equal(JSON.parse(albumJsonSnippet({ title: 'S', rpm: 45 }, base, base)).rpm, 45);
+  assert.equal(JSON.parse(albumJsonSnippet({ title: 'S', rpm: 33 }, base, base)).rpm, undefined);
+});

@@ -117,5 +117,6 @@ export function albumJsonSnippet(album, look, base) {
   const head = { title: album.title };
   if (album.artist) head.artist = album.artist;
   if (album.year != null) head.year = album.year;
+  if (album.rpm === 45) head.rpm = 45;
   return JSON.stringify({ ...head, ...lookDiff(look, base) }, null, 2);
 }

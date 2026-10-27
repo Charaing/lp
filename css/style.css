@@ -466,6 +466,11 @@ button { font: inherit; color: inherit; }
 /* ---------- small screens ---------- */
 
 @media (max-width: 900px) {
+  /* the customizer becomes a bottom sheet so it never covers the tonearm */
+  .customizer { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 58vh; height: 58dvh; border-radius: 22px 22px 0 0; }
+  .customizing .deck-screen { padding-top: max(10px, env(safe-area-inset-top)); }
+  .customizing .deck-side, .customizing .deck-screen .back { display: none; }
+  .customizing .customize-btn { display: none; }
   .deck-screen { align-items: flex-start; padding-top: calc(max(16px, env(safe-area-inset-top)) + 58px); }
   .deck { grid-template-columns: minmax(0, 1fr); gap: 18px; width: 100%; justify-items: center; }
   .tt { --w: min(calc(100vw - 32px - 5vw), calc((100dvh - 230px) * 1000 / 1300), 640px); }
@@ -478,10 +483,6 @@ button { font: inherit; color: inherit; }
   .np-track { margin-top: 10px !important; }
   .crate-screen { --sleeve: min(66vw, 42vh, 340px); }
   .crate-nav { display: none; }
-  .customizer { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 58vh; height: 58dvh; border-radius: 22px 22px 0 0; }
-  .customizing .deck-screen { padding-top: max(10px, env(safe-area-inset-top)); }
-  .customizing .deck-side, .customizing .deck-screen .back { display: none; }
-  .customizing .customize-btn { display: none; }
 }
 
 /* phones held sideways: turntable and its info side by side, sized by the short edge */

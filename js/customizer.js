@@ -171,7 +171,9 @@ export function createCustomizer(root, on) {
       const l = lk.label;
       choice(section('라벨'), [['cover', '앨범 표지'], ['color', '단색'], ['text', '글자']].map(([value, name]) => ({ value, name })), l.mode,
         (mode) => update({ label: { mode } }), 'cz-seg');
-      slider(section('라벨 크기'), '작게 ↔ 크게', l.size, 0.25, 0.45, 0.01, (size) => update({ label: { size } }, false));
+      // the largest label this shape and size allow, so the slider never moves without effect
+      const maxLabel = mergeLook(lk, { label: { size: 0.45 } }).label.size;
+      slider(section('라벨 크기'), '작게 ↔ 크게', l.size, 0.25, maxLabel, 0.005, (size) => update({ label: { size } }, false));
       colors(section('라벨 색'), l.color, (color) => update({ label: { color } }));
       colors(section('라벨 글자색'), l.text, (text) => update({ label: { text } }), ['#ffffff', '#111111']);
       const opts = section('표시');
@@ -202,7 +204,9 @@ export function createCustomizer(root, on) {
   }
 
   function close() {
+    const wasOpen = !panel.hidden;
     panel.hidden = true;
+    if (wasOpen && panel.contains(document.activeElement)) button.focus();
     code.hidden = true;
     button.setAttribute('aria-expanded', 'false');
     document.body.classList.remove('customizing');

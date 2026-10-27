@@ -46,3 +46,16 @@ test('a storage that throws makes the store unavailable but never throws', () =>
 test('missing storage (Node) is unavailable', () => {
   assert.equal(createLookStore(undefined).available, false);
 });
+
+test('a browser where even reading localStorage throws still gets a working store', () => {
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+  try {
+    const s = createLookStore();
+    assert.equal(s.available, false);
+    assert.deepEqual(s.load('a'), {});
+  } finally {
+    if (desc) Object.defineProperty(globalThis, 'localStorage', desc);
+    else delete globalThis.localStorage;
+  }
+});
