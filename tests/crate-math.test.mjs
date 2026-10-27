@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clampIndex, stepFromWheel, stepFromSwipe, sleeveTransform } from '../js/crate-math.js';
+import { clampIndex, stepFromWheel, stepFromSwipe, coverflowTransform } from '../js/crate-math.js';
 
 test('clampIndex keeps the index in range', () => {
   assert.equal(clampIndex(-1, 5), 0);
@@ -23,9 +23,20 @@ test('stepFromSwipe uses the larger axis; left/up = next, right/down = previous'
   assert.equal(stepFromSwipe(20, 20), 0);
 });
 
-test('sleeveTransform: front upright, back sleeves lean back, far ones hidden, flipped ones fall forward', () => {
-  assert.deepEqual(sleeveTransform(0), { y: 0, z: 0, rotX: -4, opacity: 1 });
-  assert.deepEqual(sleeveTransform(2), { y: -44, z: -120, rotX: -22, opacity: 1 });
-  assert.equal(sleeveTransform(5).opacity, 0);
-  assert.deepEqual(sleeveTransform(-1), { y: 60, z: 80, rotX: 70, opacity: 0 });
+test('coverflowTransform: the centre sleeve faces you', () => {
+  assert.deepEqual(coverflowTransform(0, 300), { x: 0, z: 0, rotY: 0, opacity: 1, zIndex: 100 });
+});
+
+test('coverflowTransform: side sleeves turn toward the centre and stack outward', () => {
+  assert.deepEqual(coverflowTransform(1, 300), { x: 186, z: -105, rotY: -58, opacity: 1, zIndex: 99 });
+  assert.deepEqual(coverflowTransform(-1, 300), { x: -186, z: -105, rotY: 58, opacity: 1, zIndex: 99 });
+  const three = coverflowTransform(3, 300);
+  assert.ok(Math.abs(three.x - 294) < 1e-9);
+  assert.equal(three.zIndex, 97);
+});
+
+test('coverflowTransform: far sleeves fade out', () => {
+  assert.equal(coverflowTransform(5, 300).opacity, 1);
+  assert.equal(coverflowTransform(6, 300).opacity, 0);
+  assert.equal(coverflowTransform(-6, 300).opacity, 0);
 });

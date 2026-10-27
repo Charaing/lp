@@ -16,9 +16,16 @@ export function stepFromSwipe(dx, dy, threshold = 40) {
   return d < 0 ? 1 : -1;
 }
 
-// offset 0 is the sleeve at the front; 1..4 stand behind it, leaning back;
-// negative offsets have been flipped forward out of view.
-export function sleeveTransform(offset) {
-  if (offset < 0) return { y: 60, z: 80, rotX: 70, opacity: 0 };
-  return { y: -22 * offset + 0, z: -60 * offset + 0, rotX: -4 - 9 * offset, opacity: offset > 4 ? 0 : 1 };
+// Cover flow: offset 0 faces you; the others turn 58° toward the centre and
+// stack outward, closer together the further they are. Far ones fade out.
+export function coverflowTransform(offset, size) {
+  if (offset === 0) return { x: 0, z: 0, rotY: 0, opacity: 1, zIndex: 100 };
+  const sign = Math.sign(offset), n = Math.abs(offset);
+  return {
+    x: sign * (0.62 + 0.18 * (n - 1)) * size,
+    z: -0.35 * size,
+    rotY: -sign * 58,
+    opacity: n > 5 ? 0 : 1,
+    zIndex: 100 - n,
+  };
 }
