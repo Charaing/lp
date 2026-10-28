@@ -36,3 +36,14 @@ test('an album without a cover falls back to the site icon', () => {
 test('an out-of-range index uses the album title instead of failing', () => {
   assert.equal(nowPlayingInfo(album, 9, base).title, 'Channel ORANGE');
 });
+
+test('the LP picture comes first, the cover stays as a fallback', () => {
+  const lp = { src: 'blob:x', sizes: '512x512', type: 'image/png' };
+  const art = nowPlayingInfo(album, 0, base, lp).artwork;
+  assert.deepEqual(art[0], lp);
+  assert.equal(art[1].src, 'https://charaing.github.io/lp/albums/channel-orange/cover.jpg');
+});
+
+test('without an LP picture the cover is used', () => {
+  assert.equal(nowPlayingInfo(album, 0, base).artwork.length, 1);
+});
