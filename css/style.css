@@ -184,17 +184,35 @@ button { font: inherit; color: inherit; }
 /* the record tucked inside the front sleeve */
 .sleeve-disc {
   position: absolute; top: 2.5%; left: 2.5%; width: 95%; height: 95%; border-radius: 50%;
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .7);
+  transform: translateZ(-1px);
+  transition: transform .7s cubic-bezier(.2, .8, .2, 1), opacity .3s;
+  opacity: 0;
+}
+.disc-face {
+  position: absolute; inset: 0; border-radius: 50%;
   background:
     radial-gradient(circle, transparent 0 1.6%, var(--vinyl-label, #d9d3c8) 1.7% 35%, transparent 35.5%),
+    conic-gradient(from 20deg, transparent 0 8%, rgba(255, 255, 255, .07) 12%, transparent 17% 55%, rgba(255, 255, 255, .05) 60%, transparent 65%),
     repeating-radial-gradient(circle, rgba(255, 255, 255, .05) 0 1px, transparent 1px 3px),
     radial-gradient(circle, #1b1a1a 36%, #0c0b0b 60%, #161515 99%);
-  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .5);
-  transform: translateZ(-1px);
-  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
-  opacity: 0;
+}
+.disc-label {
+  position: absolute; inset: 25.5%; border-radius: 50%;
+  background: center / cover no-repeat;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .45);
+}
+.disc-label::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 7%; aspect-ratio: 1; translate: -50% -50%;
+  border-radius: 50%; background: #0b0a09;
 }
 .sleeve-card.is-front .sleeve-disc { opacity: 1; }
 .sleeve-card.is-front:hover .sleeve-disc { transform: translateZ(-1px) translateX(10%); }
+/* the record on the turntable: half out of its sleeve, turning at 33⅓ */
+.sleeve-card.playing .sleeve-disc,
+.sleeve-card.playing.is-front:hover .sleeve-disc { opacity: 1; transform: translateZ(-1px) translateX(56%); }
+.sleeve-card.playing .disc-face { animation: disc-spin 1.8s linear infinite; }
+@keyframes disc-spin { to { transform: rotate(360deg); } }
 .sleeve-card.picking .sleeve-disc { transform: translateZ(-1px) translateX(58%) rotate(50deg); }
 .sleeve-card.picking { transform: translate3d(-18%, 0, 40px) !important; }
 
@@ -216,6 +234,11 @@ button { font: inherit; color: inherit; }
 .crate-caption { text-align: center; min-height: 64px; padding: 0 16px; }
 .crate-album { margin: 0; font-size: clamp(20px, 2.4vw, 26px); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .crate-meta { margin: 6px 0 0; font-size: 12px; letter-spacing: .14em; color: var(--gold); }
+.crate-caption.is-playing .crate-meta::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 8px 1px 0; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 8px var(--gold); animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .35; } }
 
 .crate-empty { max-width: 32ch; text-align: center; }
 .crate-empty p { margin: 0 0 8px; }
@@ -391,6 +414,43 @@ button { font: inherit; color: inherit; }
 .deck-hint[hidden] { display: none; }
 .deck-side { min-width: 0; }
 
+/* ---------- track list ---------- */
+
+.tracklist {
+  position: relative; list-style: none; margin: 14px 0 0; padding: 0 6px 18px 0;
+  max-height: min(44vh, 440px); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: rgba(237, 231, 220, .22) transparent;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+}
+.tracklist:empty { display: none; }
+.tl-row {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  width: 100%; padding: 9px 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ink); text-align: left; cursor: pointer;
+  font-size: 14px; font-weight: 600; line-height: 1.3;
+  transition: background .2s, color .2s;
+}
+.tl-row:hover { background: rgba(255, 255, 255, .05); }
+.tl-no { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.tl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-len { font-size: 12px; font-weight: 500; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.tracklist [aria-current] .tl-row { color: var(--gold); background: rgba(216, 180, 110, .08); }
+/* the playing song's number becomes three little level bars */
+.tracklist [aria-current] .tl-no {
+  height: 12px; color: transparent;
+  background:
+    linear-gradient(var(--gold), var(--gold)) 0 100% / 3px 45% no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 5px 100% / 3px 85% no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 10px 100% / 3px 60% no-repeat;
+}
+.tracklist.spinning [aria-current] .tl-no { animation: levels .9s ease-in-out infinite; }
+@keyframes levels {
+  0%, 100% { background-size: 3px 45%, 3px 85%, 3px 60%; }
+  33% { background-size: 3px 90%, 3px 35%, 3px 75%; }
+  66% { background-size: 3px 60%, 3px 100%, 3px 30%; }
+}
+
 /* ---------- customizer ---------- */
 
 .customize-btn {
@@ -491,13 +551,14 @@ button { font: inherit; color: inherit; }
   .deck-screen { align-items: flex-start; padding-top: calc(max(16px, env(safe-area-inset-top)) + 58px); }
   .deck { grid-template-columns: minmax(0, 1fr); gap: 18px; width: 100%; justify-items: center; }
   .tt { --w: min(calc(100vw - 32px - 5vw), calc((100dvh - 230px) * 1000 / 1300), 640px); }
-  .deck-side { width: min(100%, calc(var(--w, 640px) * 1.05)); padding-left: 4px; }
+  .deck-side { width: min(100%, calc(var(--w, 640px) * 1.05)); padding-left: 4px; padding-bottom: 64px; /* clear of the 꾸미기 button */ }
 }
 
 @media (max-width: 768px) {
   .screen { padding-left: 16px; padding-right: 16px; }
   .np-title { font-size: 26px; }
   .np-track { margin-top: 10px !important; }
+  .tracklist { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
   .crate-screen { --sleeve: min(66vw, 42vh, 340px); }
   .crate-nav { display: none; }
 }
@@ -516,4 +577,5 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .sleeve-card, .sleeve-disc, .tt-slot, .toast, .screen, .wrap { transition: none; }
+  .sleeve-card.playing .disc-face, .tracklist.spinning [aria-current] .tl-no, .crate-caption.is-playing .crate-meta::before { animation: none; }
 }

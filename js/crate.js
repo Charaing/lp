@@ -25,7 +25,7 @@ export function createCrate(root, albums, { onPick }) {
       el('p', 'crate-empty-hint', '앨범마다 폴더 하나에 cover.jpg와 노래 파일을 넣고 푸시하면 여기에 꽂혀요.'),
     );
     root.append(empty);
-    return { show() {}, hide() {}, focusAlbum() {}, setTint() {}, element: empty };
+    return { show() {}, hide() {}, focusAlbum() {}, setTint() {}, setPlaying() {}, element: empty };
   }
 
   const stage = el('div', 'crate-stage');
@@ -59,6 +59,14 @@ export function createCrate(root, albums, { onPick }) {
     card.id = `sleeve-${i}`;
     card.setAttribute('aria-label', `${album.title}${album.artist ? `, ${album.artist}` : ''}`);
     const disc = el('span', 'sleeve-disc');
+    // the face turns while this record is playing; the cover label makes the turning visible
+    const face = el('span', 'disc-face');
+    if (album.cover) {
+      const label = el('span', 'disc-label');
+      label.style.backgroundImage = `url("${album.cover}")`;
+      face.append(label);
+    }
+    disc.append(face);
     // a real jacket: printed front, two spines with the title, a top edge and shrink-wrap
     const jacket = el('span', 'jacket');
     if (album.cover) {
@@ -93,13 +101,19 @@ export function createCrate(root, albums, { onPick }) {
 
   let index = 0;
   let picking = false;
+  let playingId = null;
 
   // pos may be fractional while a finger drags the row
   function layout(pos = index) {
     const size = cards[0].offsetWidth || 300;
     const front = Math.round(pos);
+    // while the playing record is in front, the row slides left and the sleeves to its right
+    // make room, so the record sticking out of it stays on screen
+    const playingAt = albums.findIndex((a) => a.id === playingId);
+    const room = playingAt < 0 ? 0 : Math.max(0, 1 - Math.abs(playingAt - pos)) * 0.42 * size;
     cards.forEach((card, i) => {
       const t = coverflowTransform(i - pos, size);
+      t.x += (i > playingAt ? 0.45 : -0.55) * room;
       card.style.transform = `translate3d(${t.x}px, 0, ${t.z}px) rotateY(${t.rotY}deg)`;
       card.style.opacity = t.opacity;
       card.style.zIndex = String(t.zIndex);
@@ -113,7 +127,8 @@ export function createCrate(root, albums, { onPick }) {
     list.setAttribute('aria-activedescendant', cards[index].id);
     const a = albums[index];
     capTitle.textContent = a.title;
-    capMeta.textContent = [a.artist, `${a.tracks.length}곡`].filter(Boolean).join(' · ');
+    capMeta.textContent = [a.id === playingId ? '재생 중' : null, a.artist, `${a.tracks.length}곡`].filter(Boolean).join(' · ');
+    caption.classList.toggle('is-playing', a.id === playingId);
     prev.disabled = index === 0;
     next.disabled = index === albums.length - 1;
   }
@@ -231,6 +246,12 @@ export function createCrate(root, albums, { onPick }) {
     focusAlbum(id) {
       const i = albums.findIndex((a) => a.id === id);
       if (i >= 0) go(i);
+    },
+    // the album on the turntable right now, or null
+    setPlaying(id) {
+      playingId = id;
+      albums.forEach((a, i) => cards[i].classList.toggle('playing', a.id === id));
+      layout();
     },
     setTint(id, color) {
       const i = albums.findIndex((a) => a.id === id);

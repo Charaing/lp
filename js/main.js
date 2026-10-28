@@ -59,6 +59,9 @@ function swapScreens(show, hide) {
   requestAnimationFrame(() => requestAnimationFrame(() => show.classList.remove('entering')));
 }
 
+// the record playing on the deck sticks out of its sleeve in the crate, spinning
+deck.onPlaying((album) => crate.setPlaying(album?.id ?? null));
+
 function openDeck(album) {
   crate.hide();
   deck.setVisible(true);
@@ -70,10 +73,9 @@ function openDeck(album) {
   document.title = `${album.title} — lp`;
 }
 
+// The record stays on the platter and keeps playing while you browse the crate.
 function openCrate() {
   if (current) crate.focusAlbum(current.id);
-  current = null;
-  deck.eject();
   deck.setVisible(false);
   swapScreens(crateScreen, deckScreen);
   crate.show();

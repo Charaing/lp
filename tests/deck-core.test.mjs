@@ -34,13 +34,48 @@ function drop(core, r) {
   core.endDrag();
 }
 
-test('dropping the needle mid-album starts the track under it from the top', async () => {
+test('dropping the needle mid-song plays from exactly that spot, like a real record', async () => {
   const { player, core } = await mounted();
   core.setMotor(true);
-  drop(core, 0.68); // halfway through 20s → inside track 2
+  drop(core, 0.75); // 3/8 of the way through 20s → 7.5s, in the middle of track 1
   await sleep(450);
   assert.equal(core.state.needleDown, true);
+  assert.ok(Math.abs(player.time - 7.5) < 0.01, `time ${player.time}`);
+});
+
+test('skip lifts the needle, swings the arm over and drops it at the next track', async () => {
+  const { player, core } = await mounted();
+  core.setMotor(true);
+  drop(core, 0.9);
+  await sleep(450);
+  const from = core.state.angle;
+  core.skip(1);
+  await sleep(20);
+  core.tick(0.016);
+  assert.equal(core.state.needleDown, false, 'the needle comes up before the arm moves');
+  const until = performance.now() + 3000;
+  while (!core.state.needleDown && performance.now() < until) { core.tick(0.016); await sleep(16); }
+  assert.equal(core.state.needleDown, true);
   assert.equal(player.time, 10);
+  assert.ok(core.state.angle > from, 'the arm moved inward to track 2');
+});
+
+test('playTrack starts the motor and plays that track from its start', async () => {
+  const { player, core } = await mounted();
+  core.playTrack(1);
+  const until = performance.now() + 3000;
+  while (!core.state.needleDown && performance.now() < until) { core.tick(0.016); await sleep(16); }
+  assert.equal(core.state.motorOn, true);
+  assert.equal(player.time, 10);
+  assert.equal(core.info().index, 1);
+});
+
+test('skip without animation (lock screen) jumps straight to the track', async () => {
+  const { player, core } = await mounted();
+  core.remotePlay();
+  core.skip(1, false);
+  assert.equal(player.time, 10);
+  assert.equal(core.state.needleDown, true);
 });
 
 test('the run-out stops the record', async () => {
@@ -135,13 +170,13 @@ test('eject lets go of the album so the lock screen can clear', async () => {
   assert.equal(unloaded, true);
 });
 
-test('on a 7-inch record the needle still starts the track under it', async () => {
+test('on a 7-inch record the needle plays from the spot under it', async () => {
   const { player, core } = await mounted();
   core.setGroove({ outer: 0.5568, inner: 0.232 });
   core.setMotor(true);
-  drop(core, (0.5568 + 0.232) / 2 - 0.01); // a bit past halfway → track 2
+  drop(core, (0.5568 + 0.232) / 2); // halfway → 10s
   await sleep(450);
-  assert.equal(player.time, 10);
+  assert.ok(Math.abs(player.time - 10) < 0.01, `time ${player.time}`);
 });
 
 test('dropping on the mat around a small record sends the arm back to rest', async () => {

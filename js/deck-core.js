@@ -1,6 +1,6 @@
 // How the turntable behaves, independent of how it is drawn: motor, speed, needle,
 // tonearm angle and keeping the audio in step. The 2D and 3D decks both render this state.
-import { GROOVE, radiusToTime, timeToRadius, startOf, locate, trackStartAt } from './timeline.js';
+import { GROOVE, radiusToTime, timeToRadius, startOf, locate } from './timeline.js';
 import { ARM, angleForRadius, radiusForAngle } from './arm.js';
 import { armLift } from './deck-geometry.js';
 
@@ -24,7 +24,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     groove: GROOVE, // where the grooves are on this record (changes with size and shape)
     scratching: false, scratchTime: 0, // a hand is turning the record
   };
-  let tween = null, liftAnim = null, dropTimer = 0, mountToken = 0, pendingR = null;
+  let tween = null, liftAnim = null, dropTimer = 0, mountToken = 0, pendingR = null, travelToken = 0;
   const listeners = new Set();
   const changed = () => { for (const fn of listeners) fn(); };
 
@@ -47,19 +47,21 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     });
   }
 
-  // The needle always starts the track it lands on from the top.
+  // Like a real record, the needle plays from exactly where it lands.
   function seekToTrackUnder(r) {
-    player.seek(trackStartAt(player.durations, radiusToTime(r, player.total, s.groove)));
+    player.seek(radiusToTime(r, player.total, s.groove));
   }
 
-  function dropNeedleAt(r) {
+  // atSec: an exact time to play from (a track start), instead of reading it off the radius
+  function dropNeedleAt(r, atSec = null) {
     clearTimeout(dropTimer);
     dropTimer = setTimeout(() => {
       setNeedle(true);
       s.ended = false;
       // Track lengths may still be loading; seek again by position once they arrive.
       pendingR = player.total > 0 ? null : r;
-      seekToTrackUnder(r);
+      if (atSec != null && player.total > 0) player.seek(atSec);
+      else seekToTrackUnder(r);
       view.setHint('');
       changed();
     }, NEEDLE_DROP_MS);
@@ -67,9 +69,24 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
 
   function liftNeedle() {
     clearTimeout(dropTimer);
+    travelToken++;
     pendingR = null;
     s.ended = false;
     setNeedle(false);
+  }
+
+  // Cue the needle somewhere else the way a hand would: lift, swing the arm over, lower it.
+  async function travelTo(sec) {
+    const wasDown = s.needleDown;
+    liftNeedle();
+    const token = travelToken;
+    if (wasDown) await new Promise((r) => setTimeout(r, LIFT_MS * 0.7));
+    if (token !== travelToken) return;
+    const r = timeToRadius(sec, player.total, s.groove);
+    const to = angleForRadius(r);
+    await tweenTo(to, Math.min(1200, 350 + Math.abs(to - s.angle) * 35));
+    if (token !== travelToken || !s.album) return;
+    dropNeedleAt(r, sec);
   }
 
   async function returnToRest() {
@@ -118,7 +135,8 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     setMotor(!s.motorOn);
   }
 
-  function skip(delta) {
+  // animate: false for the lock screen, where animation frames may be paused
+  function skip(delta, animate = true) {
     if (!s.album || !s.needleDown) return;
     const durations = player.durations;
     const { index, offset } = locate(durations, player.time);
@@ -126,8 +144,18 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     if (delta < 0 && offset > 3) target = index; // restart the current track first
     target = Math.max(0, Math.min(durations.length - 1, target));
     s.ended = false;
+    if (animate) return travelTo(startOf(durations, target));
     player.seek(startOf(durations, target));
     changed();
+  }
+
+  // From the track list: start the record if needed and cue that track.
+  function playTrack(i) {
+    if (!s.album || s.phase !== 'loaded' || !(player.total > 0)) return;
+    const n = Math.max(0, Math.min(player.durations.length - 1, i));
+    setMotor(true);
+    view.setHint('');
+    return travelTo(startOf(player.durations, n));
   }
 
   player.addEventListener('durations', () => {
@@ -181,7 +209,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
   }
 
   function info() {
-    if (!s.album) return { title: '', artist: '', line: '', ariaNow: 0, ariaMax: 0, ariaText: '거치대에 있음' };
+    if (!s.album) return { title: '', artist: '', line: '', index: -1, ariaNow: 0, ariaMax: 0, ariaText: '거치대에 있음' };
     const total = player.total;
     const now = s.scratching ? s.scratchTime : player.time;
     const { index, offset } = locate(player.durations, now);
@@ -194,6 +222,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
       title: s.album.title,
       artist: s.album.artist || '',
       line,
+      index: s.needleDown && !s.ended ? index : -1, // the track under the needle
       ariaNow: Math.round(s.needleDown ? now : 0),
       ariaMax: Math.round(total),
       ariaText: s.needleDown ? `${track?.title ?? ''} ${fmt(offset)}` : '거치대에 있음',
@@ -305,7 +334,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     state: s,
     tick, idle, info, setGroove, maxAngle, startScratch, scratchTo, endScratch,
     startDrag, dragTo, endDrag,
-    setMotor, toggleMotor: () => setMotor(!s.motorOn), setRpm, togglePlay, skip,
+    setMotor, toggleMotor: () => setMotor(!s.motorOn), setRpm, togglePlay, skip, playTrack,
     remotePlay, remotePause, mount, eject,
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };

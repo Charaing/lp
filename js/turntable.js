@@ -4,7 +4,7 @@
 import { PLINTH, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
 import { loadCover, designFor, renderVinyl, coverPalette } from './vinyl.js';
 import { deckColors, rgbToHsl, hexToRgb } from './palette.js';
-import { createDeckCore, bindDeckKeys } from './deck-core.js';
+import { createDeckCore, bindDeckKeys, fmt } from './deck-core.js';
 import { defaultLook, mergeLook, normalizeLook, lookDiff, albumJsonSnippet, grooveFor, SIZE_FACTOR, INSCRIBED } from './look.js';
 import { createLookStore } from './look-store.js';
 import { createCustomizer } from './customizer.js';
@@ -116,7 +116,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
 
   const side = document.createElement('div');
   side.className = 'deck-side';
-  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><p class="deck-hint"></p>';
+  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><p class="deck-hint"></p><ol class="tracklist" aria-label="수록곡"></ol>';
   root.append(tt, side);
 
   const q = (sel) => tt.querySelector(sel);
@@ -124,6 +124,41 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   const playBtn = q('.tt-btn.play'), playCap = playBtn.querySelector('.cap');
   const hint = side.querySelector('.deck-hint');
   const npTitle = side.querySelector('.np-title'), npArtist = side.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
+  const trackList = side.querySelector('.tracklist');
+  let listIndex = -1;
+
+  // The album's songs, numbered with their lengths; tapping one cues the needle there.
+  function renderTracks(album, durations) {
+    trackList.replaceChildren(...album.tracks.map((t, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tl-row';
+      b.innerHTML = '<span class="tl-no"></span><span class="tl-title"></span><span class="tl-len"></span>';
+      b.children[0].textContent = String(i + 1).padStart(2, '0');
+      b.children[1].textContent = t.title;
+      b.children[2].textContent = durations[i] > 0 ? fmt(durations[i]) : '';
+      b.addEventListener('click', () => { engine.wake(); core.playTrack(i); });
+      li.append(b);
+      return li;
+    }));
+    listIndex = -1;
+  }
+
+  function markTrack(index, playing) {
+    trackList.classList.toggle('spinning', playing);
+    if (index === listIndex) return;
+    trackList.children[listIndex]?.removeAttribute('aria-current');
+    listIndex = index;
+    const li = trackList.children[index];
+    if (!li) return;
+    li.setAttribute('aria-current', 'true');
+    // keep the playing song in view inside the list (never scroll the page)
+    const top = li.offsetTop, h = trackList.clientHeight;
+    if (top < trackList.scrollTop || top + li.offsetHeight > trackList.scrollTop + h) {
+      trackList.scrollTo({ top: Math.max(0, top - h / 3), behavior: 'smooth' });
+    }
+  }
 
   arm.setAttribute('tabindex', '0');
   arm.setAttribute('role', 'slider');
@@ -356,9 +391,14 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   // ---- frame loop ----
   let last = performance.now();
   let lastText = 0;
+  let lastPlaying = null;
+  const playingListeners = new Set();
   function frame(now) {
+    // the core keeps running on the crate screen so the record plays on
+    core.tick((now - last) / 1000, now);
+    const playing = s.album && s.motorOn && s.needleDown && !s.ended ? s.album : null;
+    if (playing !== lastPlaying) { lastPlaying = playing; for (const fn of playingListeners) fn(playing); }
     if (active) {
-      core.tick((now - last) / 1000, now);
       spin.style.transform = `rotate(${s.rotation}deg)`;
       arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
       const lift = Math.max(0, s.lift);
@@ -385,6 +425,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     npTitle.textContent = i.title;
     npArtist.textContent = i.artist;
     npTrack.textContent = i.line;
+    markTrack(i.index, s.motorOn && i.index >= 0);
     arm.setAttribute('aria-valuemax', String(i.ariaMax));
     arm.setAttribute('aria-valuenow', String(i.ariaNow));
     arm.setAttribute('aria-valuetext', i.ariaText);
@@ -422,6 +463,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   // Draw the record at the size it is shown, so grooves don't alias into stripes on phones.
   let lastDraw = null;
   function draw(album, cover, design, durations) {
+    if (!lastDraw || lastDraw[0] !== album || lastDraw[3] !== durations) renderTracks(album, durations);
     lastDraw = [album, cover, design, durations];
     scheduleArtwork();
     const shown = record.offsetWidth * (window.devicePixelRatio || 1);
@@ -446,12 +488,15 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
       clearTimeout(artTimer);
       artworkUrl = null;
       customizer.detach();
+      trackList.replaceChildren();
+      lastDraw = null;
       core.eject();
     },
     remotePlay: core.remotePlay,
     remotePause: core.remotePause,
-    skip: core.skip,
+    skip: (delta) => core.skip(delta, false), // lock screen: no animation frames to move the arm
     setVisible(on) { active = on; },
+    onPlaying(fn) { playingListeners.add(fn); },
     lpArtwork: () => artworkUrl,
     onArtwork(fn) { artworkListeners.add(fn); },
   };
