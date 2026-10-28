@@ -1,20 +1,46 @@
-// Sets up the scratch sound: decodes the stretch of the track around the needle and feeds it
-// to the audio-thread player (scratch-worklet.js), which follows the hand's speed.
+// Sets up the scratch sound: decodes the track once into a light mono copy and hands it to the
+// audio-thread player (scratch-worklet.js), which follows the hand's speed and direction.
 import { windowAround } from './scratch-math.js';
 
+const KEEP_RATE = 22050;      // mono at 22 kHz: a 5-minute track is about 26 MB
+const WHOLE_TRACK_MAX = 720;  // longer tracks keep only a ±60 s stretch around the needle
+
+// Mix to mono and resample (linear) to `rate`, only between fromSec and toSec.
+function monoSlice(buf, fromSec, toSec, rate) {
+  const n = Math.max(1, Math.floor((toSec - fromSec) * rate));
+  const out = new Float32Array(n);
+  const ratio = buf.sampleRate / rate;
+  const first = fromSec * buf.sampleRate;
+  const chans = [];
+  for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+  const last = buf.length - 1;
+  for (let i = 0; i < n; i++) {
+    const p = Math.min(last, first + i * ratio);
+    const j = Math.floor(p), t = p - j, k = Math.min(last, j + 1);
+    let v = 0;
+    for (const ch of chans) v += ch[j] + (ch[k] - ch[j]) * t;
+    out[i] = v / chans.length;
+  }
+  return out;
+}
+
 export function createScratchEngine() {
-  const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
-  const supported = !!(AC && globalThis.AudioWorkletNode);
+  const AC = globalThis.AudioContext;
+  // the old webkitAudioContext has no AudioWorklet, so it doesn't count
+  const supported = !!(AC && globalThis.AudioWorkletNode && 'audioWorklet' in AC.prototype);
   let ctx = null, node = null, loading = null;
-  let cache = null; // { src, start, end }
+  let loaded = null;      // { src, start, end } now inside the worklet
+  let request = 0;        // newest prepare wins when they overlap
+  const decoding = new Map(); // src → Promise<AudioBuffer>
   let lastSec = 0;
-  let stopWaiter = null;
+  let stopWaiters = [];
   const listeners = new Set();
 
-  // Must start inside a pointer gesture: iOS only lets audio begin from one.
+  // Starts inside a pointer gesture: iOS only lets audio begin from one.
   function ensure() {
     if (loading) return loading;
     ctx = new AC();
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* iOS 17+ only */ }
     ctx.resume();
     loading = ctx.audioWorklet.addModule(new URL('./scratch-worklet.js', import.meta.url)).then(() => {
       node = new AudioWorkletNode(ctx, 'lp-scratch', { numberOfInputs: 0, outputChannelCount: [2] });
@@ -22,33 +48,53 @@ export function createScratchEngine() {
       node.port.onmessage = ({ data }) => {
         lastSec = data.sec;
         if (data.type === 'position') for (const fn of listeners) fn(data.sec);
-        if (data.type === 'stopped' && stopWaiter) { stopWaiter(data.sec); stopWaiter = null; }
+        if (data.type === 'stopped') {
+          const waiters = stopWaiters;
+          stopWaiters = [];
+          for (const w of waiters) w(data.sec);
+          ctx.suspend(); // nothing to play: let the phone rest
+        }
       };
     });
     return loading;
   }
 
+  function decode(src) {
+    if (!decoding.has(src)) {
+      decoding.clear(); // keep at most one track's decode around
+      decoding.set(src, fetch(src).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)));
+    }
+    return decoding.get(src);
+  }
+
   return {
     supported,
 
-    // Decode around positionSec unless that stretch is already loaded. Resolves false on failure.
+    // Call from pointer gestures (down and up): iOS unlocks audio on a touch's end.
+    wake() {
+      if (!supported) return;
+      ensure();
+      ctx.resume();
+    },
+
+    // Make sure the sound around positionSec is in the worklet. Resolves false on failure
+    // or when a newer prepare took over.
     async prepare(src, positionSec, durationSec) {
       if (!supported) return false;
+      const mine = ++request;
       try {
         const ready = ensure();
         ctx.resume();
         await ready;
-        if (cache && cache.src === src && positionSec >= cache.start + 5 && positionSec <= cache.end - 5) return true;
-        const buf = await ctx.decodeAudioData(await (await fetch(src)).arrayBuffer());
-        const w = windowAround(positionSec, durationSec || buf.duration);
-        const from = Math.floor(w.start * buf.sampleRate), to = Math.min(buf.length, Math.ceil(w.end * buf.sampleRate));
-        const mono = new Float32Array(Math.max(1, to - from));
-        for (let c = 0; c < buf.numberOfChannels; c++) {
-          const ch = buf.getChannelData(c);
-          for (let i = 0; i < mono.length; i++) mono[i] += ch[from + i] / buf.numberOfChannels;
-        }
-        node.port.postMessage({ type: 'load', samples: mono, sampleRate: buf.sampleRate, startSec: w.start }, [mono.buffer]);
-        cache = { src, start: w.start, end: w.end };
+        if (loaded && loaded.src === src && positionSec >= loaded.start + 2 && positionSec <= loaded.end - 2) return mine === request;
+        const buf = await decode(src);
+        if (mine !== request) return false;
+        const whole = buf.duration <= WHOLE_TRACK_MAX;
+        const w = whole ? { start: 0, end: buf.duration } : windowAround(Math.min(positionSec, buf.duration), buf.duration);
+        const samples = monoSlice(buf, w.start, w.end, KEEP_RATE);
+        if (whole) decoding.delete(src); // the mono copy now lives in the worklet
+        node.port.postMessage({ type: 'load', samples, sampleRate: KEEP_RATE, startSec: w.start }, [samples.buffer]);
+        loaded = { src, start: w.start, end: w.end };
         return true;
       } catch {
         return false;
@@ -58,6 +104,10 @@ export function createScratchEngine() {
     start(positionSec) {
       if (!node) return;
       ctx.resume();
+      // a grab that comes back before the previous stop finished takes over from there
+      const waiters = stopWaiters;
+      stopWaiters = [];
+      for (const w of waiters) w(lastSec);
       lastSec = positionSec;
       node.port.postMessage({ type: 'start', positionSec });
     },
@@ -70,20 +120,20 @@ export function createScratchEngine() {
     stop() {
       if (!node) return Promise.resolve(lastSec);
       return new Promise((resolve) => {
-        stopWaiter = resolve;
+        stopWaiters.push(resolve);
         node.port.postMessage({ type: 'stop' });
-        setTimeout(() => { if (stopWaiter === resolve) { stopWaiter = null; resolve(lastSec); } }, 250);
+        setTimeout(() => {
+          if (stopWaiters.includes(resolve)) {
+            stopWaiters = stopWaiters.filter((w) => w !== resolve);
+            resolve(lastSec);
+          }
+        }, 250);
       });
     },
 
     onPosition(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
-    },
-
-    dispose() {
-      ctx?.close();
-      ctx = node = loading = cache = null;
     },
   };
 }

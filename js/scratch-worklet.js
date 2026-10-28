@@ -26,9 +26,16 @@ class LpScratch extends AudioWorkletProcessor {
     this.gainStep = 1 / (0.015 * sampleRate);                  // 15 ms fades
     this.port.onmessage = ({ data }) => {
       if (data.type === 'load') {
+        // a new stretch of sound: nothing plays until 'start' says where
         this.samples = data.samples;
         this.srcRate = data.sampleRate;
         this.startSec = data.startSec;
+        this.pos = 0;
+        this.gain = 0;
+        this.gainTarget = 0;
+        this.target = 0;
+        this.rate = 0;
+        this.stopping = false;
       } else if (data.type === 'start') {
         this.pos = (data.positionSec - this.startSec) * this.srcRate;
         this.rate = 0;

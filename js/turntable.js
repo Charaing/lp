@@ -9,7 +9,6 @@ import { defaultLook, mergeLook, normalizeLook, lookDiff, albumJsonSnippet, groo
 import { createLookStore } from './look-store.js';
 import { createCustomizer } from './customizer.js';
 import { createScratchEngine } from './scratch.js';
-import { makeArtworkSlot } from './lp-artwork.js';
 import { unwrapDelta, rateFromVelocity, smoothVelocity } from './scratch-math.js';
 import { locate, startOf } from './timeline.js';
 
@@ -232,7 +231,10 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
 
   // ---- spinning the record by hand (scratching) ----
   const engine = createScratchEngine();
-  let sc = null; // { lastAngle, rotation, vel, lastT, trackStart, pos, dur, ready, idle }
+  const GRAB_DEG = 3; // a tap is not a scratch: the record must actually move first
+  let touch = null;   // finger on the record, not yet turning it
+  let sc = null;      // { lastAngle, rotation, vel, lastT, trackStart, pos, dur, ready, idle, index }
+  let releasing = null; // the last scratch while its sound fades out, so a quick re-grab carries on
   const angleAt = (e) => {
     const r = record.getBoundingClientRect();
     return (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
@@ -240,32 +242,57 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   const clampPos = (p, dur) => Math.max(0, Math.min(dur, p));
 
   record.addEventListener('pointerdown', (e) => {
-    if (!s.album || s.phase !== 'loaded' || sc) return;
+    if (!s.album || s.phase !== 'loaded' || sc || touch) return;
     const r = record.getBoundingClientRect();
-    const reach = (r.width / 2) * SIZE_FACTOR[current?.look.vinyl.size ?? 12];
-    if (Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) > reach) return; // the mat, not the record
+    const half = r.width / 2;
+    const dist = Math.hypot(e.clientX - (r.left + half), e.clientY - (r.top + half));
+    if (dist > half * SIZE_FACTOR[current?.look.vinyl.size ?? 12]) return; // the mat, not the record
+    if (dist < half * 0.12) return; // at the spindle a tiny move is a huge angle
     e.preventDefault();
     try { record.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    const { index, offset } = locate(player.durations, player.time);
-    const mine = {
-      lastAngle: angleAt(e), rotation: s.rotation, vel: 0, lastT: performance.now(),
-      trackStart: startOf(player.durations, index), pos: offset, dur: player.durations[index] || 0, ready: false, idle: 0,
-    };
+    engine.wake();
+    touch = { angle: angleAt(e), moved: 0 };
+  });
+
+  function beginScratch() {
+    const t = touch;
+    touch = null;
+    // carry on from a scratch whose sound is still fading out, else from where the music is
+    const from = releasing;
+    releasing = null;
+    let index, trackStart, pos, dur;
+    if (from) {
+      ({ index, trackStart, dur } = from);
+      pos = from.pos;
+    } else {
+      const loc = locate(player.durations, player.time);
+      index = loc.index;
+      trackStart = startOf(player.durations, index);
+      pos = loc.offset;
+      dur = player.durations[index] || 0;
+    }
+    const mine = { lastAngle: t.angle, rotation: s.rotation, vel: 0, lastT: performance.now(), trackStart, pos, dur, index, ready: false, idle: 0 };
     sc = mine;
-    core.startScratch();
+    if (!from) core.startScratch();
+    core.scratchTo(mine.rotation, trackStart + pos);
     record.classList.add('scratching');
-    if (s.needleDown && engine.supported && mine.dur > 0) {
+    if (s.needleDown && engine.supported && dur > 0) {
       // decoding takes a moment the first time; the record turns meanwhile and sound joins in
-      engine.prepare(s.album.tracks[index].src, offset, mine.dur).then((ok) => {
+      engine.prepare(s.album.tracks[index].src, pos, dur).then((ok) => {
         if (!ok || sc !== mine) return;
         mine.ready = true;
         engine.start(mine.pos);
         engine.setRate(rateFromVelocity(mine.vel, s.rpm));
       });
     }
-  });
+  }
 
   record.addEventListener('pointermove', (e) => {
+    if (touch) {
+      touch.moved += Math.abs(unwrapDelta(touch.angle, angleAt(e)));
+      if (touch.moved < GRAB_DEG) return;
+      beginScratch();
+    }
     if (!sc) return;
     const now = performance.now();
     const a = angleAt(e);
@@ -292,19 +319,34 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   });
 
   async function releaseRecord() {
+    engine.wake(); // iOS unlocks audio when a touch ends
+    if (touch) { touch = null; return; } // just a tap: the music never stopped
     if (!sc) return;
     const done = sc;
     sc = null;
     clearTimeout(done.idle);
     record.classList.remove('scratching');
+    releasing = done;
     const pos = done.ready ? await engine.stop() : done.pos;
+    if (releasing !== done) return; // grabbed again while fading out: that scratch carries on
+    releasing = null;
     core.endScratch(done.trackStart + clampPos(pos, done.dur));
   }
   record.addEventListener('pointerup', releaseRecord);
   record.addEventListener('pointercancel', releaseRecord);
 
+  // leaving the record mid-scratch (eject, another album): drop the grab and its sound
+  function dropGrab() {
+    if (sc) clearTimeout(sc.idle);
+    touch = null;
+    sc = null;
+    releasing = null;
+    record.classList.remove('scratching');
+    engine.stop();
+  }
+
   // ---- keys ----
-  playBtn.addEventListener('click', () => core.togglePlay());
+  playBtn.addEventListener('click', () => { engine.wake(); core.togglePlay(); });
   q('.tt-btn.prev').addEventListener('click', () => core.skip(-1));
   q('.tt-btn.next').addEventListener('click', () => core.skip(1));
   for (const b of tt.querySelectorAll('.tt-speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
@@ -350,7 +392,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   core.onChange(updateText);
 
   // ---- lock-screen picture: the record as it looks now, on the deck's background ----
-  const artwork = makeArtworkSlot();
+  let artworkUrl = null;
   const artworkListeners = new Set();
   let artTimer = 0;
   function scheduleArtwork(delay = 500) {
@@ -372,11 +414,9 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     ctx.shadowBlur = 26;
     ctx.shadowOffsetY = 10;
     ctx.drawImage(rc, 28, 22);
-    c.toBlob((blob) => {
-      if (!blob || current?.album !== album) return;
-      artwork.set(blob);
-      for (const fn of artworkListeners) fn();
-    }, 'image/png');
+    // a data: URL, not blob:, so the system's Now Playing can always read it
+    artworkUrl = c.toDataURL('image/jpeg', 0.86);
+    for (const fn of artworkListeners) fn();
   }
 
   // Draw the record at the size it is shown, so grooves don't alias into stripes on phones.
@@ -396,12 +436,15 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   });
 
   return {
-    mount: core.mount,
+    mount(album) {
+      dropGrab();
+      return core.mount(album);
+    },
     eject() {
-      if (sc) { clearTimeout(sc.idle); sc = null; record.classList.remove('scratching'); engine.stop(); }
+      dropGrab();
       current = null;
       clearTimeout(artTimer);
-      artwork.clear();
+      artworkUrl = null;
       customizer.detach();
       core.eject();
     },
@@ -409,7 +452,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     remotePause: core.remotePause,
     skip: core.skip,
     setVisible(on) { active = on; },
-    lpArtwork: () => artwork.current(),
+    lpArtwork: () => artworkUrl,
     onArtwork(fn) { artworkListeners.add(fn); },
   };
 }

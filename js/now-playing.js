@@ -30,7 +30,7 @@ export function connectMediaSession(player, deck) {
     if (!player.album) return;
     const lp = deck.lpArtwork?.();
     ms.metadata = new MediaMetadata(nowPlayingInfo(player.album, player.index, document.baseURI,
-      lp ? { src: lp, sizes: '512x512', type: 'image/png' } : null));
+      lp ? { src: lp, sizes: '512x512', type: 'image/jpeg' } : null));
     position();
   };
 
