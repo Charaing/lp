@@ -70,3 +70,7 @@ test('pulling past either end only stretches a little', () => {
   assert.equal(clampFloat(6, 5), 4.5);
   assert.equal(clampFloat(2.4, 5), 2.4);
 });
+
+test('coverflowTransform: a non-number offset hides the sleeve instead of recursing', () => {
+  for (const o of [NaN, Infinity, -Infinity]) assert.equal(coverflowTransform(o, 300).opacity, 0);
+});

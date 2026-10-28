@@ -218,7 +218,7 @@ export function createCrate(root, albums, { onPick }) {
   });
 
   layout();
-  addEventListener('resize', layout);
+  addEventListener('resize', () => layout());
 
   return {
     element: stage,

@@ -19,6 +19,7 @@ export function stepFromSwipe(dx, dy, threshold = 40) {
 // Cover flow: offset 0 faces you; the others turn 58° toward the centre and
 // stack outward, closer together the further they are. Far ones fade out.
 export function coverflowTransform(offset, size) {
+  if (!Number.isFinite(offset)) return { x: 0, z: -0.35 * size, rotY: 0, opacity: 0, zIndex: 0 };
   // while a finger drags the row, offsets are fractional: blend the two neighbouring poses
   if (!Number.isInteger(offset)) {
     const lo = Math.floor(offset), t = offset - lo;

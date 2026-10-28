@@ -101,16 +101,16 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-// The turntable takes its colour from the cover: greys become cream or graphite,
-// anything colourful becomes a calm, mid-light version of that colour.
+// The turntable takes its colour from the cover, in the dark theme: greys become graphite
+// or deep black, anything colourful becomes a deep, rich version of that colour.
 export function deckColors(palette) {
   const first = palette[0];
-  if (!first) return { body: '#ece6da', bg: '#f3f1ec', ink: '#1c1a18' };
+  if (!first) return { body: '#1f1e1d', bg: '#0b0a09', ink: '#ede7dc' };
   const [h, s, l] = rgbToHsl(...hexToRgb(first));
   const grey = s < 0.15;
-  const body = grey ? (l > 0.5 ? '#ece6da' : '#3a3a3c') : hslToHex(h, clamp(s, 0.45, 0.85), clamp(l, 0.5, 0.66));
-  const bg = hslToHex(h, grey ? 0.06 : Math.min(0.3, s * 0.25), 0.94);
+  const body = grey ? (l > 0.5 ? '#2a2927' : '#1a1a1a') : hslToHex(h, clamp(s, 0.3, 0.6), clamp(l * 0.5, 0.18, 0.28));
+  const bg = hslToHex(h, grey ? 0.04 : Math.min(0.35, s * 0.4), 0.055);
   const bodyL = rgbToHsl(...hexToRgb(body))[2];
-  const ink = luminance(body) > 0.3 || bodyL >= 0.52 ? '#1c1a18' : '#f4efe6';
+  const ink = luminance(body) > 0.3 || bodyL >= 0.52 ? '#1c1a18' : '#ede7dc';
   return { body, bg, ink };
 }

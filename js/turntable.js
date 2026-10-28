@@ -71,7 +71,7 @@ function buildArm() {
     svg('rect', { x: P.x - 26, y: tip - 96, width: 52, height: 112, rx: 10, fill: 'url(#tt-shell)' }),
     svg('rect', { x: P.x + 26, y: tip - 86, width: 34, height: 10, rx: 5, fill: 'url(#tt-tube)' }),
     svg('rect', { x: P.x - 16, y: tip - 44, width: 32, height: 50, rx: 4, fill: '#3a3a3a' }),
-    svg('circle', { cx: P.x, cy: tip, r: 4, fill: '#ff8a1f' }),
+    svg('circle', { cx: P.x, cy: tip, r: 4, fill: '#d8b46e' }),
   );
   arm.append(head);
   const grab = svg('circle', { class: 'arm-grab', cx: P.x, cy: tip - 60, r: 95, fill: 'transparent' });
@@ -142,7 +142,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     let colors = deckColors(palette);
     if (look.deck.body !== 'auto') {
       const l = rgbToHsl(...hexToRgb(look.deck.body))[2];
-      colors = { body: look.deck.body, bg: deckColors([look.deck.body]).bg, ink: l >= 0.52 ? '#1c1a18' : '#f4efe6' };
+      colors = { body: look.deck.body, bg: deckColors([look.deck.body]).bg, ink: l >= 0.52 ? '#1c1a18' : '#ede7dc' };
     }
     for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
       (screen ?? root).style.setProperty(k, v);
@@ -405,7 +405,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     const c = document.createElement('canvas');
     c.width = c.height = 512;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = getComputedStyle(screen ?? root).getPropertyValue('--deck-bg').trim() || '#f3f1ec';
+    ctx.fillStyle = getComputedStyle(screen ?? root).getPropertyValue('--deck-bg').trim() || '#0b0a09';
     ctx.fillRect(0, 0, 512, 512);
     const rc = document.createElement('canvas');
     rc.width = rc.height = 456;
