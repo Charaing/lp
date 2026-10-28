@@ -157,3 +157,40 @@ test('maxAngle lets the arm reach the run-out of a small record', async () => {
   core.setGroove({ outer: 0.5568, inner: 0.232 });
   assert.ok(Math.abs(core.maxAngle() - angleForRadius(0.192)) < 1e-9);
 });
+
+test('scratching pauses the player and stops tick from driving the record', async () => {
+  const { player, core } = await mounted();
+  core.remotePlay(); await sleep(10);
+  core.startScratch();
+  assert.equal(player.audio.paused, true);
+  core.scratchTo(123, 4);
+  core.tick(0.1, 1e6);
+  assert.equal(core.state.rotation, 123);
+  assert.ok(Math.abs(core.state.angle - angleForRadius(timeToRadius(4, 20))) < 1e-9);
+});
+
+test('letting go resumes playback from where the hand left it', async () => {
+  const { player, core } = await mounted();
+  core.remotePlay(); await sleep(10);
+  core.startScratch();
+  core.endScratch(13);
+  await sleep(20);
+  core.tick(0.1, 1e6 + 100);
+  assert.equal(player.time, 13);
+  assert.equal(player.audio.paused, false);
+});
+
+test('with the needle up, spinning the record by hand never plays', async () => {
+  const { player, core } = await mounted();
+  core.startScratch(); core.scratchTo(90, 5); core.endScratch(5); await sleep(20);
+  core.setMotor(true); core.tick(0.1, 1e6);
+  assert.equal(player.audio.paused, true);
+  assert.equal(core.state.needleDown, false);
+});
+
+test('ejecting mid-scratch ends the scratch', async () => {
+  const { core } = await mounted();
+  core.startScratch();
+  core.eject();
+  assert.equal(core.state.scratching, false);
+});

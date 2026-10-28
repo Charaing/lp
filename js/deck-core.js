@@ -22,6 +22,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     motorOn: false, rpm: 33, speed: 0, rotation: 0,
     angle: ARM.rest, lift: 1, needleDown: false, dragging: false, ended: false, audible: false,
     groove: GROOVE, // where the grooves are on this record (changes with size and shape)
+    scratching: false, scratchTime: 0, // a hand is turning the record
   };
   let tween = null, liftAnim = null, dropTimer = 0, mountToken = 0, pendingR = null;
   const listeners = new Set();
@@ -147,15 +148,17 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     const step = Math.min(0.1, Math.max(0, dt));
     const before = [s.rotation, s.angle, s.lift];
     const target = s.motorOn ? DEG_PER_SEC[s.rpm] : 0;
-    s.speed += (target - s.speed) * (1 - Math.exp(-step / 0.25));
-    if (Math.abs(s.speed) < 0.05 && !s.motorOn) s.speed = 0;
-    s.rotation = (s.rotation + s.speed * step) % 360;
+    if (!s.scratching) { // while a hand holds the record, the hand turns it
+      s.speed += (target - s.speed) * (1 - Math.exp(-step / 0.25));
+      if (Math.abs(s.speed) < 0.05 && !s.motorOn) s.speed = 0;
+      s.rotation = (s.rotation + s.speed * step) % 360;
+    }
 
     if (tween) {
       const k = Math.min(1, (t - tween.start) / tween.ms);
       s.angle = tween.from + (tween.to - tween.from) * (1 - (1 - k) ** 3);
       if (k === 1) { const done = tween.resolve; tween = null; done(); }
-    } else if (s.needleDown && !s.dragging && !s.ended && player.total > 0) {
+    } else if (s.needleDown && !s.dragging && !s.scratching && !s.ended && player.total > 0) {
       // follows the music, so after the page was hidden the arm jumps straight to where playback is
       s.angle = angleForRadius(timeToRadius(player.time, player.total, s.groove));
     }
@@ -166,7 +169,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
       if (k === 1) { s.lift = liftAnim.down ? 0 : 1; liftAnim = null; }
     }
 
-    const shouldPlay = s.album && s.needleDown && s.motorOn && !s.dragging && !s.ended && s.speed > target * 0.6;
+    const shouldPlay = s.album && s.needleDown && s.motorOn && !s.dragging && !s.scratching && !s.ended && s.speed > target * 0.6;
     if (shouldPlay && !s.audible) { s.audible = true; player.play(); }
     else if (!shouldPlay && s.audible) { s.audible = false; player.pause(); }
 
@@ -174,13 +177,14 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
   }
 
   function idle() {
-    return s.speed === 0 && !s.motorOn && !tween && !liftAnim && !s.dragging;
+    return s.speed === 0 && !s.motorOn && !tween && !liftAnim && !s.dragging && !s.scratching;
   }
 
   function info() {
     if (!s.album) return { title: '', artist: '', line: '', ariaNow: 0, ariaMax: 0, ariaText: '거치대에 있음' };
     const total = player.total;
-    const { index, offset } = locate(player.durations, player.time);
+    const now = s.scratching ? s.scratchTime : player.time;
+    const { index, offset } = locate(player.durations, now);
     const track = s.album.tracks[index];
     let line;
     if (s.ended) line = `끝까지 들었어요  ${fmt(total)}`;
@@ -190,7 +194,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
       title: s.album.title,
       artist: s.album.artist || '',
       line,
-      ariaNow: Math.round(s.needleDown ? player.time : 0),
+      ariaNow: Math.round(s.needleDown ? now : 0),
       ariaMax: Math.round(total),
       ariaText: s.needleDown ? `${track?.title ?? ''} ${fmt(offset)}` : '거치대에 있음',
     };
@@ -198,6 +202,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
 
   async function mount(album) {
     const token = ++mountToken;
+    s.scratching = false;
     s.ended = false;
     s.audible = false;
     player.pause();
@@ -229,7 +234,38 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
     changed();
   }
 
+  // ---- spinning the record by hand ----
+  // While scratching the audio comes from the scratch engine, so the player stays paused.
+  function startScratch() {
+    s.scratching = true;
+    s.scratchTime = player.time;
+    s.audible = false;
+    player.pause();
+    changed();
+  }
+
+  function scratchTo(rotationDeg, albumTimeSec) {
+    if (!s.scratching) return;
+    s.rotation = ((rotationDeg % 360) + 360) % 360;
+    s.scratchTime = albumTimeSec;
+    if (s.needleDown && !s.ended && player.total > 0) {
+      s.angle = angleForRadius(timeToRadius(albumTimeSec, player.total, s.groove));
+    }
+  }
+
+  function endScratch(albumTimeSec) {
+    if (!s.scratching) return;
+    s.scratching = false;
+    if (s.needleDown) {
+      s.ended = false;
+      player.seek(albumTimeSec); // the run-out still stops the record
+    }
+    s.speed = s.motorOn ? DEG_PER_SEC[s.rpm] : 0; // the motor takes the record straight back
+    changed();
+  }
+
   function eject() {
+    s.scratching = false;
     mountToken++;
     s.album = null;
     s.phase = 'empty';
@@ -267,7 +303,7 @@ export function createDeckCore(player, view, { now = () => performance.now() } =
 
   return {
     state: s,
-    tick, idle, info, setGroove, maxAngle,
+    tick, idle, info, setGroove, maxAngle, startScratch, scratchTo, endScratch,
     startDrag, dragTo, endDrag,
     setMotor, toggleMotor: () => setMotor(!s.motorOn), setRpm, togglePlay, skip,
     remotePlay, remotePause, mount, eject,

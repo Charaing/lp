@@ -8,6 +8,9 @@ import { createDeckCore, bindDeckKeys } from './deck-core.js';
 import { defaultLook, mergeLook, normalizeLook, lookDiff, albumJsonSnippet, grooveFor, SIZE_FACTOR, INSCRIBED } from './look.js';
 import { createLookStore } from './look-store.js';
 import { createCustomizer } from './customizer.js';
+import { createScratchEngine } from './scratch.js';
+import { unwrapDelta, rateFromVelocity, smoothVelocity } from './scratch-math.js';
+import { locate, startOf } from './timeline.js';
 
 // tonearm metal: tube gradient stops and pivot dome stops
 const ARM_METAL = {
@@ -226,6 +229,79 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   grab.addEventListener('pointerup', () => core.endDrag());
   grab.addEventListener('pointercancel', () => core.endDrag());
 
+  // ---- spinning the record by hand (scratching) ----
+  const engine = createScratchEngine();
+  let sc = null; // { lastAngle, rotation, vel, lastT, trackStart, pos, dur, ready, idle }
+  const angleAt = (e) => {
+    const r = record.getBoundingClientRect();
+    return (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
+  };
+  const clampPos = (p, dur) => Math.max(0, Math.min(dur, p));
+
+  record.addEventListener('pointerdown', (e) => {
+    if (!s.album || s.phase !== 'loaded' || sc) return;
+    const r = record.getBoundingClientRect();
+    const reach = (r.width / 2) * SIZE_FACTOR[current?.look.vinyl.size ?? 12];
+    if (Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) > reach) return; // the mat, not the record
+    e.preventDefault();
+    try { record.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const { index, offset } = locate(player.durations, player.time);
+    const mine = {
+      lastAngle: angleAt(e), rotation: s.rotation, vel: 0, lastT: performance.now(),
+      trackStart: startOf(player.durations, index), pos: offset, dur: player.durations[index] || 0, ready: false, idle: 0,
+    };
+    sc = mine;
+    core.startScratch();
+    record.classList.add('scratching');
+    if (s.needleDown && engine.supported && mine.dur > 0) {
+      // decoding takes a moment the first time; the record turns meanwhile and sound joins in
+      engine.prepare(s.album.tracks[index].src, offset, mine.dur).then((ok) => {
+        if (!ok || sc !== mine) return;
+        mine.ready = true;
+        engine.start(mine.pos);
+        engine.setRate(rateFromVelocity(mine.vel, s.rpm));
+      });
+    }
+  });
+
+  record.addEventListener('pointermove', (e) => {
+    if (!sc) return;
+    const now = performance.now();
+    const a = angleAt(e);
+    const d = unwrapDelta(sc.lastAngle, a);
+    const dt = Math.max(0.001, (now - sc.lastT) / 1000);
+    sc.lastAngle = a;
+    sc.lastT = now;
+    sc.rotation += d;
+    sc.vel = smoothVelocity(sc.vel, d / dt, dt);
+    const rate = s.needleDown ? rateFromVelocity(sc.vel, s.rpm) : 0;
+    if (sc.ready) engine.setRate(rate);
+    else sc.pos = clampPos(sc.pos + rate * dt, sc.dur);
+    core.scratchTo(sc.rotation, sc.trackStart + sc.pos);
+    // a hand that stops moving stops the sound
+    clearTimeout(sc.idle);
+    const held = sc;
+    sc.idle = setTimeout(() => { if (sc === held) { held.vel = 0; if (held.ready) engine.setRate(0); } }, 80);
+  });
+
+  engine.onPosition((sec) => {
+    if (!sc?.ready) return;
+    sc.pos = clampPos(sec, sc.dur);
+    core.scratchTo(sc.rotation, sc.trackStart + sc.pos);
+  });
+
+  async function releaseRecord() {
+    if (!sc) return;
+    const done = sc;
+    sc = null;
+    clearTimeout(done.idle);
+    record.classList.remove('scratching');
+    const pos = done.ready ? await engine.stop() : done.pos;
+    core.endScratch(done.trackStart + clampPos(pos, done.dur));
+  }
+  record.addEventListener('pointerup', releaseRecord);
+  record.addEventListener('pointercancel', releaseRecord);
+
   // ---- keys ----
   playBtn.addEventListener('click', () => core.togglePlay());
   q('.tt-btn.prev').addEventListener('click', () => core.skip(-1));
@@ -290,6 +366,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   return {
     mount: core.mount,
     eject() {
+      if (sc) { clearTimeout(sc.idle); sc = null; record.classList.remove('scratching'); engine.stop(); }
       current = null;
       customizer.detach();
       core.eject();
