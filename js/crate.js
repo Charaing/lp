@@ -110,7 +110,7 @@ export function createCrate(root, albums, { onPick }) {
     // while the playing record is in front, the row slides left and the sleeves to its right
     // make room, so the record sticking out of it stays on screen
     const playingAt = albums.findIndex((a) => a.id === playingId);
-    const room = playingAt < 0 ? 0 : Math.max(0, 1 - Math.abs(playingAt - pos)) * 0.42 * size;
+    const room = playingAt < 0 ? 0 : Math.max(0, 1 - Math.abs(playingAt - pos)) * 0.34 * size;
     cards.forEach((card, i) => {
       const t = coverflowTransform(i - pos, size);
       t.x += (i > playingAt ? 0.45 : -0.55) * room;

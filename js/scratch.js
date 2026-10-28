@@ -28,7 +28,8 @@ export function createScratchEngine() {
   const AC = globalThis.AudioContext;
   // the old webkitAudioContext has no AudioWorklet, so it doesn't count
   const supported = !!(AC && globalThis.AudioWorkletNode && 'audioWorklet' in AC.prototype);
-  let ctx = null, node = null, loading = null;
+  let ctx = null, node = null, gain = null, loading = null;
+  let volume = 1;
   let loaded = null;      // { src, start, end } now inside the worklet
   let request = 0;        // newest prepare wins when they overlap
   const decoding = new Map(); // src → Promise<AudioBuffer>
@@ -44,7 +45,9 @@ export function createScratchEngine() {
     ctx.resume();
     loading = ctx.audioWorklet.addModule(new URL('./scratch-worklet.js', import.meta.url)).then(() => {
       node = new AudioWorkletNode(ctx, 'lp-scratch', { numberOfInputs: 0, outputChannelCount: [2] });
-      node.connect(ctx.destination);
+      gain = ctx.createGain();
+      gain.gain.value = volume;
+      node.connect(gain).connect(ctx.destination);
       node.port.onmessage = ({ data }) => {
         lastSec = data.sec;
         if (data.type === 'position') for (const fn of listeners) fn(data.sec);
@@ -129,6 +132,11 @@ export function createScratchEngine() {
           }
         }, 250);
       });
+    },
+
+    setVolume(v) {
+      volume = v;
+      if (gain) gain.gain.value = v;
     },
 
     onPosition(fn) {

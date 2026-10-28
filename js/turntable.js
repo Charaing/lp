@@ -116,7 +116,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
 
   const side = document.createElement('div');
   side.className = 'deck-side';
-  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><p class="deck-hint"></p><ol class="tracklist" aria-label="수록곡"></ol>';
+  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><div class="volume"><button type="button" class="vol-btn" aria-label="음소거"></button><input class="vol-range" type="range" min="0" max="1" step="0.01" aria-label="음량"></div><p class="deck-hint"></p><ol class="tracklist" aria-label="수록곡"></ol>';
   root.append(tt, side);
 
   const q = (sel) => tt.querySelector(sel);
@@ -266,6 +266,33 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
 
   // ---- spinning the record by hand (scratching) ----
   const engine = createScratchEngine();
+
+  // ---- volume: the music and the scratch sound together, remembered on this device ----
+  const volBox = side.querySelector('.volume'), volBtn = side.querySelector('.vol-btn'), volRange = side.querySelector('.vol-range');
+  const speaker = (waves) => `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>${waves}</svg>`;
+  const ICON_ON = speaker('<path d="M15.5 9a4.2 4.2 0 010 6M18 6.5a7.8 7.8 0 010 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>');
+  const ICON_OFF = speaker('<path d="M16 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>');
+  let volume = 1, beforeMute = 1;
+  try { const v = Number(localStorage.getItem('lp:volume')); if (localStorage.getItem('lp:volume') != null && v >= 0 && v <= 1) volume = v; } catch { /* storage blocked */ }
+  function setVolume(v, save = true) {
+    volume = Math.min(1, Math.max(0, v));
+    player.audio.volume = volume;
+    engine.setVolume(volume);
+    volRange.value = String(volume);
+    volRange.style.setProperty('--v', `${volume * 100}%`);
+    volBtn.innerHTML = volume === 0 ? ICON_OFF : ICON_ON;
+    volBtn.setAttribute('aria-label', volume === 0 ? '소리 켜기' : '음소거');
+    if (save) try { localStorage.setItem('lp:volume', String(volume)); } catch { /* storage blocked */ }
+  }
+  volRange.addEventListener('input', () => setVolume(Number(volRange.value)));
+  volBtn.addEventListener('click', () => {
+    if (volume > 0) { beforeMute = volume; setVolume(0); } else setVolume(beforeMute || 1);
+  });
+  setVolume(volume, false);
+  // iPhone and iPad only take volume from the side buttons: a page can't set it there
+  const probe = new Audio();
+  probe.volume = 0.5;
+  volBox.hidden = probe.volume !== 0.5;
   const GRAB_DEG = 3; // a tap is not a scratch: the record must actually move first
   let touch = null;   // finger on the record, not yet turning it
   let sc = null;      // { lastAngle, rotation, vel, lastT, trackStart, pos, dur, ready, idle, index }

@@ -193,7 +193,7 @@ button { font: inherit; color: inherit; }
   position: absolute; inset: 0; border-radius: 50%;
   background:
     radial-gradient(circle, transparent 0 1.6%, var(--vinyl-label, #d9d3c8) 1.7% 35%, transparent 35.5%),
-    conic-gradient(from 20deg, transparent 0 8%, rgba(255, 255, 255, .07) 12%, transparent 17% 55%, rgba(255, 255, 255, .05) 60%, transparent 65%),
+    conic-gradient(from 20deg, transparent 0 6%, rgba(255, 255, 255, .2) 10%, transparent 15% 38%, rgba(255, 255, 255, .1) 42%, transparent 46% 62%, rgba(255, 255, 255, .22) 67%, transparent 73%),
     repeating-radial-gradient(circle, rgba(255, 255, 255, .05) 0 1px, transparent 1px 3px),
     radial-gradient(circle, #1b1a1a 36%, #0c0b0b 60%, #161515 99%);
 }
@@ -210,7 +210,8 @@ button { font: inherit; color: inherit; }
 .sleeve-card.is-front:hover .sleeve-disc { transform: translateZ(-1px) translateX(10%); }
 /* the record on the turntable: half out of its sleeve, turning at 33⅓ */
 .sleeve-card.playing .sleeve-disc,
-.sleeve-card.playing.is-front:hover .sleeve-disc { opacity: 1; transform: translateZ(-1px) translateX(56%); }
+.sleeve-card.playing.is-front:hover .sleeve-disc { opacity: 1; transform: translateZ(-1px) translateX(26%); }
+/* this one is the playing indicator, so it turns even with reduced motion, like the record on the deck */
 .sleeve-card.playing .disc-face { animation: disc-spin 1.8s linear infinite; }
 @keyframes disc-spin { to { transform: rotate(360deg); } }
 .sleeve-card.picking .sleeve-disc { transform: translateZ(-1px) translateX(58%) rotate(50deg); }
@@ -410,6 +411,34 @@ button { font: inherit; color: inherit; }
 .np-title { font-size: clamp(24px, 2.6vw, 34px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
 .np-artist { margin-top: 4px !important; font-size: 15px; color: var(--ink-dim); }
 .np-track { margin-top: 18px !important; padding-top: 14px; border-top: 1px solid var(--line); color: var(--gold); font-size: 13px; letter-spacing: .04em; font-variant-numeric: tabular-nums; white-space: pre-wrap; }
+.volume { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.volume[hidden] { display: none; }
+.vol-btn {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: transparent; color: var(--ink-dim); cursor: pointer;
+}
+.vol-btn:hover { color: var(--gold); background: rgba(255, 255, 255, .05); }
+.vol-range {
+  flex: 1; min-width: 0; height: 18px; margin: 0; background: transparent; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  --v: 100%;
+}
+.vol-range::-webkit-slider-runnable-track {
+  height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--gold) var(--v), rgba(237, 231, 220, .16) var(--v));
+}
+.vol-range::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(237, 231, 220, .16); }
+.vol-range::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--gold); }
+.vol-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%;
+  background: #f3dfb2; box-shadow: 0 0 0 3px rgba(216, 180, 110, .25), 0 2px 6px rgba(0, 0, 0, .6);
+}
+.vol-range::-moz-range-thumb {
+  width: 14px; height: 14px; border: 0; border-radius: 50%;
+  background: #f3dfb2; box-shadow: 0 0 0 3px rgba(216, 180, 110, .25), 0 2px 6px rgba(0, 0, 0, .6);
+}
+.vol-range:focus-visible { outline: none; }
+.vol-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--gold); }
 .deck-hint { margin: 14px 0 0; font-size: 13px; color: var(--ink-dim); }
 .deck-hint[hidden] { display: none; }
 .deck-side { min-width: 0; }
@@ -577,5 +606,5 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .sleeve-card, .sleeve-disc, .tt-slot, .toast, .screen, .wrap { transition: none; }
-  .sleeve-card.playing .disc-face, .tracklist.spinning [aria-current] .tl-no, .crate-caption.is-playing .crate-meta::before { animation: none; }
+  .tracklist.spinning [aria-current] .tl-no, .crate-caption.is-playing .crate-meta::before { animation: none; }
 }
