@@ -110,3 +110,14 @@ test('a copied snippet round-trips through the build', async () => {
   assert.deepEqual(mergeLook(normalizeLook({}), albums[0].look), look);
   assert.equal(albums[0].title, 'T');
 });
+
+test('buildManifest uses any picture as the cover when there is no cover.*, preferring cover.*', async () => {
+  const { dir } = await fixture({
+    named: { '01 a.mp3': 'x', '이어링.jpg': 'x', 'notes.txt': 'x' },
+    both: { '01 a.mp3': 'x', 'back.png': 'x', 'Cover.webp': 'x' },
+  });
+  const { albums } = await buildManifest(dir, 'albums');
+  const by = Object.fromEntries(albums.map((a) => [a.id, a.cover]));
+  assert.equal(by.named, encodePath('albums', 'named', '이어링.jpg'));
+  assert.equal(by.both, encodePath('albums', 'both', 'Cover.webp'));
+});

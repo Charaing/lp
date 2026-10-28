@@ -11,7 +11,7 @@
 ```
 albums/
 └─ 내 앨범/
-   ├─ cover.jpg          표지 (jpg, png, webp — 없어도 됨)
+   ├─ cover.jpg          표지 (jpg, png, webp — 이름은 아무거나, 없어도 됨)
    ├─ 01 첫 곡.mp3       노래 (mp3, m4a, ogg, wav, flac)
    ├─ 02 두 번째 곡.mp3
    └─ album.json         선택 사항

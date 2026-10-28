@@ -7,6 +7,7 @@ import { normalizeLook, lookDiff } from '../js/look.js';
 
 const AUDIO = new Set(['.mp3', '.m4a', '.ogg', '.wav', '.flac']);
 const COVERS = ['cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp'];
+const IMAGES = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const STYLES = new Set(['solid', 'translucent', 'marble', 'splatter', 'picture']);
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -55,7 +56,9 @@ export async function buildManifest(albumsDir, publicPrefix = 'albums') {
       warnings.push(`${id}: 오디오 파일이 없어 건너뜁니다`);
       continue;
     }
-    const coverFile = COVERS.map((c) => files.find((f) => f.toLowerCase() === c)).find(Boolean);
+    const coverFile = COVERS.map((c) => files.find((f) => f.toLowerCase() === c)).find(Boolean)
+      // any other picture in the folder will do, whatever it is called
+      ?? files.filter((f) => IMAGES.has(extname(f).toLowerCase())).sort(naturalCompare)[0];
     const meta = await readAlbumJson(join(albumsDir, id, 'album.json'), warnings, id);
     const vinyl = pickColors(meta.vinyl, ['color', 'accent']);
     if (STYLES.has(meta.vinyl?.style)) vinyl.style = meta.vinyl.style;
