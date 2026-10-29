@@ -346,6 +346,9 @@ button { font: inherit; color: inherit; }
 .tt-record.empty .tt-spin { opacity: 0; transform: translateX(-30%) scale(.96); }
 .tt-slot { position: absolute; inset: 0; transition: transform .5s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
 .tt-record.empty .tt-slot { opacity: 0; transform: translateX(-40%); }
+/* while a picked record is flying in, the deck's own one stays hidden and doesn't slide */
+.tt-record.placing .tt-slot { visibility: hidden; transition: none; }
+.flyer { position: fixed; z-index: 50; pointer-events: none; border-radius: 50%; transform-origin: 50% 50%; will-change: transform; }
 
 /* light reflected off the record; it stays put while the record turns under it */
 .tt-sheen {

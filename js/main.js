@@ -4,6 +4,7 @@ import { createTurntable } from './turntable.js';
 import { loadCover, designFor } from './vinyl.js';
 import { connectMediaSession } from './now-playing.js';
 import { albumIdFromHash, hashForAlbum } from './router.js';
+import { placeRecord } from './place.js';
 
 const toastEl = document.getElementById('toast');
 let toastTimer = 0;
@@ -37,9 +38,11 @@ const albums = await loadAlbums();
 let current = null; // album on the platter
 
 const crate = createCrate(document.getElementById('crate'), albums, {
-  onPick(album) {
+  onPick(album, card) {
     history.pushState({ fromCrate: true }, '', hashForAlbum(album.id));
+    const fresh = current !== album; // the record already on the deck isn't placed again
     openDeck(album);
+    if (fresh) placeRecord(card?.querySelector('.sleeve-disc'), album, deckScreen.querySelector('.tt-record'));
   },
 });
 
