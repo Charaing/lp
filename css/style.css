@@ -82,6 +82,7 @@ button { font: inherit; color: inherit; }
 
 .crate-head { display: flex; align-items: baseline; gap: 14px; }
 .crate-sub { margin: 0; font-size: 12px; letter-spacing: .18em; color: var(--ink-dim); }
+.credit { margin-left: -6px; font-family: var(--serif); font-style: italic; font-size: 15px; letter-spacing: .02em; color: var(--gold); opacity: .8; white-space: nowrap; }
 
 .crate { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 
