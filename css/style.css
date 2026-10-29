@@ -377,22 +377,6 @@ button { font: inherit; color: inherit; }
 }
 .tt-record.empty .tt-sheen { opacity: 0; }
 
-/* the platter: a machined aluminium rim with two rows of strobe dots, turning with the record */
-.tt-platter {
-  position: absolute; inset: -2.6%; border-radius: 50%;
-  background:
-    radial-gradient(circle closest-side, transparent 0 96.6%, rgba(0, 0, 0, .5) 97%, transparent 97.5%),
-    radial-gradient(circle closest-side, transparent 0 95.6%, rgba(0, 0, 0, 0) 95.6% 98.8%, rgba(0, 0, 0, .35) 99.4%),
-    repeating-conic-gradient(rgba(25, 25, 25, .55) 0 .55deg, transparent .55deg 2.4deg),
-    conic-gradient(from 210deg, #6f7372, #c9cccb 12%, #858988 26%, #5d6160 40%, #a9adac 55%, #d6d9d7 63%, #747877 76%, #9a9e9d 90%, #6f7372);
-  -webkit-mask: radial-gradient(circle closest-side, transparent 0 95.4%, #000 95.6% 99.4%, transparent 100%);
-          mask: radial-gradient(circle closest-side, transparent 0 95.4%, #000 95.6% 99.4%, transparent 100%);
-  box-shadow: 0 16px 30px -12px rgba(0, 0, 0, .7);
-}
-.tt-platter-well {
-  position: absolute; inset: -3.4%; border-radius: 50%;
-  background: radial-gradient(circle closest-side, rgba(0, 0, 0, .55) 92%, rgba(0, 0, 0, .25) 97%, transparent 100%);
-}
 /* the rubber mat, seen when no record is on (or around a small one) */
 .tt-mat {
   position: absolute; inset: 0; border-radius: 50%;

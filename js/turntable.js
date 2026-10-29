@@ -166,8 +166,6 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   tt.className = 'tt';
   tt.innerHTML = `
     <div class="tt-record empty">
-      <div class="tt-platter-well"></div>
-      <div class="tt-platter"></div>
       <div class="tt-mat"></div>
       <div class="tt-slot">
         <div class="tt-record-shadow"></div>
@@ -198,7 +196,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   root.append(tt, side);
 
   const q = (sel) => tt.querySelector(sel);
-  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas'), platter = q('.tt-platter');
+  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas');
   const playBtn = q('.tt-btn.play'), playCap = playBtn.querySelector('.cap');
   const hint = side.querySelector('.deck-hint');
   const npTitle = side.querySelector('.np-title'), npArtist = side.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
@@ -505,7 +503,6 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     if (playing !== lastPlaying) { lastPlaying = playing; for (const fn of playingListeners) fn(playing); }
     if (active) {
       spin.style.transform = `rotate(${s.rotation}deg)`;
-      platter.style.transform = spin.style.transform;
       arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
       const lift = Math.max(0, s.lift);
       shadow.setAttribute('dx', 6 + 14 * lift);
