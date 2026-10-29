@@ -177,7 +177,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
       <div class="tt-spindle"></div>
     </div>
     <span class="tt-pilot" aria-hidden="true"></span>
-    <span class="tt-mark" aria-hidden="true"><b>lp</b><span>DIRECT DRIVE</span></span>
+    <span class="tt-mark" aria-hidden="true"><b>lp</b></span>
     <div class="tt-speed" role="group" aria-label="회전 속도">
       <button type="button" data-rpm="33" aria-pressed="true">33</button>
       <button type="button" data-rpm="45" aria-pressed="false">45</button>

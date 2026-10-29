@@ -329,7 +329,6 @@ button { font: inherit; color: inherit; }
   text-shadow: 0 1px 0 rgba(255, 255, 255, .06), 0 -1px 0 rgba(0, 0, 0, .5);
 }
 .tt-mark b { display: block; font-family: var(--serif); font-style: italic; font-weight: 400; font-size: calc(var(--w) * .052); color: var(--gold); opacity: .85; }
-.tt-mark span { display: block; margin-top: calc(var(--w) * .008); font-size: calc(var(--w) * .016); letter-spacing: .32em; font-weight: 600; }
 .tt-record {
   position: absolute;
   left: -5%; top: calc(90 / 1300 * 100%);
