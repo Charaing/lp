@@ -160,6 +160,11 @@ const icon = {
   next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
 };
 
+// The deck is drawn flat, seen from straight above, then tilted back in 3D around its front
+// edge so it reads like a real turntable on a table. Pointer input is mapped back through it.
+const TILT_DEG = 30;
+const PERSPECTIVE = 3.2; // × the deck's width
+
 export function createTurntable(root, player, { notify = () => {} } = {}) {
   root.replaceChildren();
   const tt = document.createElement('div');
@@ -176,11 +181,17 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
       </div>
       <div class="tt-spindle"></div>
     </div>
-    <span class="tt-pilot" aria-hidden="true"></span>
     <span class="tt-mark" aria-hidden="true"><b>lp</b><span>DIRECT DRIVE</span></span>
-    <div class="tt-speed" role="group" aria-label="회전 속도">
-      <button type="button" data-rpm="33" aria-pressed="true">33</button>
-      <button type="button" data-rpm="45" aria-pressed="false">45</button>
+    <div class="tt-lid" aria-hidden="true"></div>
+    <div class="tt-front">
+      <span class="tt-grille" aria-hidden="true"></span>
+      <div class="tt-panel">
+        <span class="tt-jack" aria-hidden="true"></span>
+        <span class="tt-pilot" aria-hidden="true"></span>
+        <div class="tt-knob-wrap"><span class="tt-knob-label" aria-hidden="true">33 · 45</span><button type="button" class="tt-knob speed" aria-label="회전 속도"><span class="knob-cap"></span></button></div>
+        <div class="tt-knob-wrap"><span class="tt-knob-label" aria-hidden="true">VOLUME</span><div class="tt-knob volume-knob" role="slider" tabindex="0" aria-label="음량" aria-valuemin="0" aria-valuemax="100"><span class="knob-cap"></span></div></div>
+      </div>
+      <span class="tt-grille" aria-hidden="true"></span>
     </div>
     <div class="tt-controls">
       <button type="button" class="tt-btn play" aria-pressed="false"><span class="key"></span><span class="cap">PLAY</span></button>
@@ -189,6 +200,8 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
         <button type="button" class="tt-btn next" aria-label="다음 곡"><span class="key"></span><span class="cap">${icon.next}</span></button>
       </div>
     </div>`;
+  tt.style.setProperty('--tilt', `${TILT_DEG}deg`);
+  tt.style.setProperty('--persp', String(PERSPECTIVE));
   const { root: armLayer, arm, grab, shadow } = buildArm();
   tt.querySelector('.tt-record').after(armLayer);
 
@@ -327,11 +340,21 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   const s = core.state;
 
   // ---- tonearm dragging ----
+  // A pointer on screen → the same point on the flat (untilted) deck, in its own CSS pixels.
+  function toDeck(e) {
+    const w = tt.offsetWidth, h = tt.offsetHeight;
+    const base = tt.offsetParent ? tt.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
+    const ox = base.left + tt.offsetLeft + w / 2, oy = base.top + tt.offsetTop + h; // the front edge doesn't move
+    const P = w * PERSPECTIVE, t = (TILT_DEG * Math.PI) / 180;
+    const dx = e.clientX - ox, dy = e.clientY - oy;
+    const Y = (dy * P) / (Math.cos(t) * P + dy * Math.sin(t));
+    const k = P / (P - Y * Math.sin(t));
+    return { x: dx / k + w / 2, y: Y + h };
+  }
   function pointerAngle(e) {
-    const m = armLayer.getScreenCTM();
-    if (!m) return s.angle;
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return clampAngle((Math.atan2(p.y - PIVOT.y, p.x - PIVOT.x) * 180) / Math.PI, core.maxAngle());
+    const p = toDeck(e);
+    const x = (p.x * PLINTH.w) / tt.offsetWidth, y = (p.y * PLINTH.h) / tt.offsetHeight;
+    return clampAngle((Math.atan2(y - PIVOT.y, x - PIVOT.x) * 180) / Math.PI, core.maxAngle());
   }
   grab.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -358,11 +381,30 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     engine.setVolume(volume);
     volRange.value = String(volume);
     volRange.style.setProperty('--v', `${volume * 100}%`);
+    volKnob.style.setProperty('--turn', `${-135 + volume * 270}deg`);
+    volKnob.setAttribute('aria-valuenow', String(Math.round(volume * 100)));
     volBtn.innerHTML = volume === 0 ? ICON_OFF : ICON_ON;
     volBtn.setAttribute('aria-label', volume === 0 ? '소리 켜기' : '음소거');
     if (save) try { localStorage.setItem('lp:volume', String(volume)); } catch { /* storage blocked */ }
   }
   volRange.addEventListener('input', () => setVolume(Number(volRange.value)));
+  // the VOLUME knob on the front: drag up/down, scroll, or arrow keys
+  const volKnob = q('.volume-knob');
+  let knobDrag = null;
+  volKnob.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    try { volKnob.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    knobDrag = { y: e.clientY, v: volume };
+  });
+  volKnob.addEventListener('pointermove', (e) => { if (knobDrag) setVolume(knobDrag.v + (knobDrag.y - e.clientY) / 150); });
+  const endKnob = () => { knobDrag = null; };
+  volKnob.addEventListener('pointerup', endKnob);
+  volKnob.addEventListener('pointercancel', endKnob);
+  volKnob.addEventListener('wheel', (e) => { e.preventDefault(); setVolume(volume - Math.sign(e.deltaY) * 0.05); }, { passive: false });
+  volKnob.addEventListener('keydown', (e) => {
+    const d = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05 }[e.key];
+    if (d) { e.preventDefault(); e.stopPropagation(); setVolume(volume + d); }
+  });
   volBtn.addEventListener('click', () => {
     if (volume > 0) { beforeMute = volume; setVolume(0); } else setVolume(beforeMute || 1);
   });
@@ -375,17 +417,18 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   let touch = null;   // finger on the record, not yet turning it
   let sc = null;      // { lastAngle, rotation, vel, lastT, trackStart, pos, dur, ready, idle, index }
   let releasing = null; // the last scratch while its sound fades out, so a quick re-grab carries on
+  const recordCentre = () => ({ x: record.offsetLeft + record.offsetWidth / 2, y: record.offsetTop + record.offsetHeight / 2 });
   const angleAt = (e) => {
-    const r = record.getBoundingClientRect();
-    return (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
+    const p = toDeck(e), c = recordCentre();
+    return (Math.atan2(p.y - c.y, p.x - c.x) * 180) / Math.PI;
   };
   const clampPos = (p, dur) => Math.max(0, Math.min(dur, p));
 
   record.addEventListener('pointerdown', (e) => {
     if (!s.album || s.phase !== 'loaded' || sc || touch) return;
-    const r = record.getBoundingClientRect();
-    const half = r.width / 2;
-    const dist = Math.hypot(e.clientX - (r.left + half), e.clientY - (r.top + half));
+    const half = record.offsetWidth / 2;
+    const p = toDeck(e), c = recordCentre();
+    const dist = Math.hypot(p.x - c.x, p.y - c.y);
     if (dist > half * SIZE_FACTOR[current?.look.vinyl.size ?? 12]) return; // the mat, not the record
     if (dist < half * 0.12) return; // at the spindle a tiny move is a huge angle
     e.preventDefault();
@@ -489,7 +532,8 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   playBtn.addEventListener('click', () => { engine.wake(); core.togglePlay(); });
   q('.tt-btn.prev').addEventListener('click', () => core.skip(-1));
   q('.tt-btn.next').addEventListener('click', () => core.skip(1));
-  for (const b of tt.querySelectorAll('.tt-speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
+  const speedKnob = q('.tt-knob.speed');
+  speedKnob.addEventListener('click', () => core.setRpm(s.rpm === 33 ? 45 : 33));
   let active = true;
   bindDeckKeys(core, () => active);
 
@@ -525,7 +569,8 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     playBtn.setAttribute('aria-pressed', String(playing));
     playBtn.setAttribute('aria-label', playing ? '정지' : '재생');
     tt.classList.toggle('motor-on', s.motorOn);
-    for (const b of tt.querySelectorAll('.tt-speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === s.rpm));
+    speedKnob.style.setProperty('--turn', s.rpm === 45 ? '40deg' : '-40deg');
+    speedKnob.setAttribute('aria-label', `회전 속도 ${s.rpm} — 눌러서 바꾸기`);
     record.classList.toggle('empty', s.phase !== 'loaded');
     const i = core.info();
     npTitle.textContent = i.title;
