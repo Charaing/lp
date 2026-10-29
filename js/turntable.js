@@ -53,14 +53,38 @@ function buildArm() {
     svg('circle', { cx: P.x, cy: P.y, r: 86, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.25)', 'stroke-width': 2 }),
     svg('circle', { cx: P.x, cy: P.y, r: 58, fill: 'none', stroke: 'rgba(0,0,0,.18)', 'stroke-width': 2 }),
   );
-  // the rest the arm parks on
-  root.append(svg('rect', { x: P.x - 20, y: P.y + 452, width: 40, height: 30, rx: 10, fill: '#1a1a1a', opacity: '.85' }));
+  // anti-skate dial with its scale, and the cue lever
+  const dial = svg('g', { transform: `translate(${P.x + 80} ${P.y + 150})` });
+  dial.append(
+    svg('circle', { r: 30, fill: 'rgba(0,0,0,.28)' }),
+    svg('circle', { r: 24, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.35)', 'stroke-width': 2 }),
+    svg('rect', { x: -2, y: -22, width: 4, height: 12, rx: 2, fill: '#2a2a2a' }),
+  );
+  for (let i = -4; i <= 4; i++) {
+    dial.append(svg('rect', { x: -1, y: -38, width: 2, height: i % 2 ? 5 : 8, fill: 'rgba(255,255,255,.35)', transform: `rotate(${i * 18})` }));
+  }
+  const cue = svg('g', { transform: `translate(${P.x + 80} ${P.y + 320})` });
+  cue.append(
+    svg('rect', { x: -16, y: -40, width: 32, height: 80, rx: 16, fill: 'rgba(0,0,0,.32)' }),
+    svg('rect', { x: -6, y: -32, width: 12, height: 64, rx: 6, fill: '#121212' }),
+    svg('rect', { x: -14, y: -38, width: 28, height: 22, rx: 8, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 1.5 }),
+  );
+  root.append(dial, cue);
+  // the rest the arm parks on, with its clip
+  root.append(
+    svg('rect', { x: P.x - 24, y: P.y + 448, width: 48, height: 38, rx: 12, fill: 'rgba(0,0,0,.3)' }),
+    svg('rect', { x: P.x - 20, y: P.y + 452, width: 40, height: 30, rx: 10, fill: '#1a1a1a' }),
+    svg('path', { d: `M${P.x - 15} ${P.y + 462} q15 -12 30 0`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 4, 'stroke-linecap': 'round' }),
+  );
 
   const arm = svg('g', { class: 'arm', filter: 'url(#tt-arm-shadow)' });
   arm.append(
     // counterweight behind the pivot
     svg('rect', { x: P.x - 30, y: P.y - 122, width: 60, height: 84, rx: 12, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.25)', 'stroke-width': 2 }),
     svg('rect', { x: P.x - 30, y: P.y - 66, width: 60, height: 8, fill: '#151515' }),
+    // knurled ridges and the gauge ring on the counterweight
+    ...[-112, -104, -96, -88, -80].map((dy) => svg('rect', { x: P.x - 30, y: P.y + dy, width: 60, height: 2, fill: 'rgba(0,0,0,.22)' })),
+    svg('rect', { x: P.x - 31, y: P.y - 74, width: 62, height: 6, rx: 2, fill: '#1c1c1c' }),
     // the tube
     svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 70, rx: 9, fill: 'url(#tt-tube)' }),
     svg('circle', { cx: P.x, cy: P.y, r: 30, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 2 }),
@@ -91,6 +115,8 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   tt.className = 'tt';
   tt.innerHTML = `
     <div class="tt-record empty">
+      <div class="tt-platter-well"></div>
+      <div class="tt-platter"></div>
       <div class="tt-mat"></div>
       <div class="tt-slot">
         <div class="tt-record-shadow"></div>
@@ -100,6 +126,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
       <div class="tt-spindle"></div>
     </div>
     <span class="tt-pilot" aria-hidden="true"></span>
+    <span class="tt-mark" aria-hidden="true"><b>lp</b><span>DIRECT DRIVE</span></span>
     <div class="tt-speed" role="group" aria-label="회전 속도">
       <button type="button" data-rpm="33" aria-pressed="true">33</button>
       <button type="button" data-rpm="45" aria-pressed="false">45</button>
@@ -120,7 +147,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   root.append(tt, side);
 
   const q = (sel) => tt.querySelector(sel);
-  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas');
+  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas'), platter = q('.tt-platter');
   const playBtn = q('.tt-btn.play'), playCap = playBtn.querySelector('.cap');
   const hint = side.querySelector('.deck-hint');
   const npTitle = side.querySelector('.np-title'), npArtist = side.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
@@ -427,6 +454,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     if (playing !== lastPlaying) { lastPlaying = playing; for (const fn of playingListeners) fn(playing); }
     if (active) {
       spin.style.transform = `rotate(${s.rotation}deg)`;
+      platter.style.transform = spin.style.transform;
       arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
       const lift = Math.max(0, s.lift);
       shadow.setAttribute('dx', 6 + 14 * lift);

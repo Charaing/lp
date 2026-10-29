@@ -254,6 +254,13 @@ function grooves(ctx, D, rand, durations, groove, strength) {
     ctx.strokeStyle = `rgba(255,255,255,${0.1 * k})`;
     ctx.beginPath(); ctx.arc(0, 0, g * D + D * 0.0045, 0, Math.PI * 2); ctx.stroke();
   }
+  // the smooth lead-in at the edge is glossier than the grooved part
+  const lead = ctx.createRadialGradient(0, 0, outer, 0, 0, outer + D * 0.04);
+  lead.addColorStop(0, 'rgba(255,255,255,0)');
+  lead.addColorStop(0.3, 'rgba(255,255,255,0.05)');
+  lead.addColorStop(1, 'rgba(255,255,255,0.015)');
+  ctx.fillStyle = lead;
+  ctx.beginPath(); ctx.arc(0, 0, outer + D * 0.05, 0, Math.PI * 2); ctx.arc(0, 0, outer, 0, Math.PI * 2, true); ctx.fill();
   // lead-in and smooth run-out bands
   ctx.lineWidth = D * 0.002;
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -305,11 +312,45 @@ function label(ctx, album, d, cover, R) {
       ctx.fillText(`${album.rpm ?? 33} RPM`, 0, r * 0.66);
     }
   }
+  // paper catches the light a little, unevenly
+  const sheen = ctx.createLinearGradient(-r, -r, r, r);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.10)');
+  sheen.addColorStop(0.45, 'rgba(255,255,255,0)');
+  sheen.addColorStop(1, 'rgba(0,0,0,0.14)');
+  ctx.fillStyle = sheen;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  // the label's edge sits a hair below the vinyl, with a raised ring pressed just outside it
+  ctx.lineWidth = R * 0.006;
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.arc(0, 0, r + R * 0.003, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = R * 0.004;
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.beginPath(); ctx.arc(0, 0, r + R * 0.028, 0, Math.PI * 2); ctx.stroke();
   if (d.look.label.ring) {
     ctx.lineWidth = R * 0.004;
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
   }
+}
+
+// The matrix number scratched into the smooth run-out, as on every pressed record.
+function runoutEtching(ctx, album, d, R, groove, D) {
+  const r = (groove.inner - 0.025) * D;
+  if (r <= d.look.label.size * R + R * 0.03) return;
+  const code = `${(album.id || 'LP').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase() || 'LP'}-${(d.seed % 9000) + 1000} A`;
+  ctx.save();
+  ctx.font = `500 ${R * 0.018}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.rotate(-Math.PI / 2 - 0.5);
+  for (const ch of code) {
+    ctx.save();
+    ctx.translate(0, -r);
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+    ctx.rotate((ctx.measureText(ch).width + R * 0.004) / r);
+  }
+  ctx.restore();
 }
 
 export function renderVinyl(canvas, album, design, cover, durations) {
@@ -327,12 +368,17 @@ export function renderVinyl(canvas, album, design, cover, durations) {
   ctx.clip();
   pressing(ctx, design, R, cover, rand);
   grooves(ctx, D, rand, durations, groove, lk.finish.grooves);
+  if (design.style !== 'picture') runoutEtching(ctx, album, design, R, groove, D);
   label(ctx, album, design, cover, R);
   ctx.restore();
-  // a thin bevel along the edge
+  // the rolled lip along the edge: dark rim, and a bright line where its top catches the light
   ctx.lineWidth = Math.max(1, D * 0.006);
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
   shapePath(ctx, lk.vinyl.shape, R - ctx.lineWidth / 2);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, D * 0.003);
+  ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+  shapePath(ctx, lk.vinyl.shape, R - D * 0.011);
   ctx.stroke();
   // spindle hole
   ctx.globalCompositeOperation = 'destination-out';
