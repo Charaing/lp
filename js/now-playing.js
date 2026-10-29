@@ -4,7 +4,7 @@ import { startOf } from './timeline.js';
 
 const TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
-export function nowPlayingInfo(album, index, baseHref, lpArtwork = null) {
+export function nowPlayingInfo(album, index, baseHref) {
   const cover = album.cover
     ? { src: new URL(album.cover, baseHref).href, sizes: '512x512', type: TYPES[album.cover.split('.').pop().toLowerCase()] ?? 'image/jpeg' }
     : { src: new URL('icons/icon-512.png', baseHref).href, sizes: '512x512', type: 'image/png' };
@@ -12,7 +12,7 @@ export function nowPlayingInfo(album, index, baseHref, lpArtwork = null) {
     title: album.tracks[index]?.title ?? album.title,
     artist: album.artist || '',
     album: album.title,
-    artwork: lpArtwork ? [lpArtwork, cover] : [cover], // the record itself first, the cover as a fallback
+    artwork: [cover],
   };
 }
 
@@ -28,15 +28,12 @@ export function connectMediaSession(player, deck) {
   };
   const refresh = () => {
     if (!player.album) return;
-    const lp = deck.lpArtwork?.();
-    ms.metadata = new MediaMetadata(nowPlayingInfo(player.album, player.index, document.baseURI,
-      lp ? { src: lp, sizes: '512x512', type: 'image/jpeg' } : null));
+    ms.metadata = new MediaMetadata(nowPlayingInfo(player.album, player.index, document.baseURI));
     position();
   };
 
   player.addEventListener('track', refresh);
   player.addEventListener('durations', refresh);
-  deck.onArtwork?.(refresh);
   player.addEventListener('unload', () => { ms.metadata = null; ms.playbackState = 'none'; });
   audio.addEventListener('play', () => { ms.playbackState = 'playing'; refresh(); });
   audio.addEventListener('pause', () => { ms.playbackState = 'paused'; position(); });

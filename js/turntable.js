@@ -535,40 +535,11 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   }
   core.onChange(updateText);
 
-  // ---- lock-screen picture: the record as it looks now, on the deck's background ----
-  let artworkUrl = null;
-  const artworkListeners = new Set();
-  let artTimer = 0;
-  function scheduleArtwork(delay = 500) {
-    clearTimeout(artTimer);
-    artTimer = setTimeout(buildArtwork, delay);
-  }
-  function buildArtwork() {
-    if (!current || !lastDraw) return;
-    const { album } = current;
-    const c = document.createElement('canvas');
-    c.width = c.height = 512;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = getComputedStyle(screen ?? root).getPropertyValue('--deck-bg').trim() || '#0b0a09';
-    ctx.fillRect(0, 0, 512, 512);
-    const rc = document.createElement('canvas');
-    rc.width = rc.height = 456;
-    renderVinyl(rc, album, current.design, current.cover, lastDraw[3]);
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 26;
-    ctx.shadowOffsetY = 10;
-    ctx.drawImage(rc, 28, 22);
-    // a data: URL, not blob:, so the system's Now Playing can always read it
-    artworkUrl = c.toDataURL('image/jpeg', 0.86);
-    for (const fn of artworkListeners) fn();
-  }
-
   // Draw the record at the size it is shown, so grooves don't alias into stripes on phones.
   let lastDraw = null;
   function draw(album, cover, design, durations) {
     if (!lastDraw || lastDraw[0] !== album || lastDraw[3] !== durations) renderTracks(album, durations);
     lastDraw = [album, cover, design, durations];
-    scheduleArtwork();
     const shown = record.offsetWidth * (window.devicePixelRatio || 1);
     const px = shown > 0 ? Math.min(1400, Math.max(256, Math.round(shown))) : 1024;
     if (canvas.width !== px) canvas.width = canvas.height = px;
@@ -588,8 +559,6 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     eject() {
       dropGrab();
       current = null;
-      clearTimeout(artTimer);
-      artworkUrl = null;
       customizer.detach();
       trackList.replaceChildren();
       lastDraw = null;
@@ -600,7 +569,5 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     skip: (delta) => core.skip(delta, false), // lock screen: no animation frames to move the arm
     setVisible(on) { active = on; },
     onPlaying(fn) { playingListeners.add(fn); },
-    lpArtwork: () => artworkUrl,
-    onArtwork(fn) { artworkListeners.add(fn); },
   };
 }
