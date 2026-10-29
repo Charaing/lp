@@ -42,6 +42,9 @@ function buildArm() {
       <linearGradient id="tt-shell" x1="0" x2="1">
         <stop offset="0" stop-color="#0d0d0d"/><stop offset=".5" stop-color="#2a2a2a"/><stop offset="1" stop-color="#0d0d0d"/>
       </linearGradient>
+      <linearGradient id="tt-cart" x1="0" x2="1">
+        <stop offset="0" stop-color="#050505"/><stop offset=".3" stop-color="#3a3a3a"/><stop offset=".45" stop-color="#151515"/><stop offset="1" stop-color="#050505"/>
+      </linearGradient>
       <filter id="tt-arm-shadow" x="-30%" y="-10%" width="160%" height="130%">
         <feDropShadow id="tt-arm-shadow-offset" dx="14" dy="16" stdDeviation="7" flood-color="#000" flood-opacity=".32"/>
       </filter>
@@ -86,16 +89,37 @@ function buildArm() {
     ...[-112, -104, -96, -88, -80].map((dy) => svg('rect', { x: P.x - 30, y: P.y + dy, width: 60, height: 2, fill: 'rgba(0,0,0,.22)' })),
     svg('rect', { x: P.x - 31, y: P.y - 74, width: 62, height: 6, rx: 2, fill: '#1c1c1c' }),
     // the tube
-    svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 70, rx: 9, fill: 'url(#tt-tube)' }),
+    svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 125, rx: 9, fill: 'url(#tt-tube)' }),
+    // the bend that gives the headshell its offset angle
+    svg('path', { d: `M${P.x} ${tip - 176} Q${P.x + 3} ${tip - 132} ${P.x + 44} ${tip - 110}`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 18, 'stroke-linecap': 'round' }),
+    svg('path', { d: `M${P.x - 3} ${tip - 176} Q${P.x} ${tip - 136} ${P.x + 40} ${tip - 115}`, fill: 'none', stroke: 'rgba(255,255,255,.45)', 'stroke-width': 3, 'stroke-linecap': 'round' }),
+    svg('rect', { x: P.x - 10, y: tip - 186, width: 20, height: 6, rx: 2, fill: 'rgba(0,0,0,.35)' }),
     svg('circle', { cx: P.x, cy: P.y, r: 30, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 2 }),
   );
   // headshell and cartridge, angled like a real offset headshell; the stylus is exactly at the tip
   const head = svg('g', { transform: `rotate(22 ${P.x} ${tip})` });
   head.append(
-    svg('rect', { x: P.x - 26, y: tip - 96, width: 52, height: 112, rx: 10, fill: 'url(#tt-shell)' }),
-    svg('rect', { x: P.x + 26, y: tip - 86, width: 34, height: 10, rx: 5, fill: 'url(#tt-tube)' }),
-    svg('rect', { x: P.x - 16, y: tip - 44, width: 32, height: 50, rx: 4, fill: '#3a3a3a' }),
-    svg('circle', { cx: P.x, cy: tip, r: 4, fill: '#d8b46e' }),
+    // collar where the headshell plugs into the arm
+    svg('rect', { x: P.x - 12, y: tip - 134, width: 24, height: 28, rx: 5, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 1.5 }),
+    svg('rect', { x: P.x - 12, y: tip - 124, width: 24, height: 2.5, fill: 'rgba(0,0,0,.35)' }),
+    // finger lift, curving out to the side
+    svg('path', { d: `M${P.x + 22} ${tip - 22} C${P.x + 48} ${tip - 26} ${P.x + 62} ${tip - 44} ${P.x + 70} ${tip - 70}`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 7, 'stroke-linecap': 'round' }),
+    svg('circle', { cx: P.x + 70, cy: tip - 72, r: 5.5, fill: 'url(#tt-dome)' }),
+    // the headshell plate, tapering toward the front, with a bright chamfer
+    svg('path', { d: `M${P.x - 18} ${tip - 108} L${P.x + 18} ${tip - 108} L${P.x + 27} ${tip + 6} Q${P.x + 27} ${tip + 18} ${P.x + 15} ${tip + 18} L${P.x - 15} ${tip + 18} Q${P.x - 27} ${tip + 18} ${P.x - 27} ${tip + 6} Z`,
+      fill: 'url(#tt-shell)', stroke: 'url(#tt-tube)', 'stroke-width': 2 }),
+    svg('rect', { x: P.x - 13, y: tip - 98, width: 4, height: 28, rx: 2, fill: 'rgba(0,0,0,.6)' }),
+    svg('rect', { x: P.x + 9, y: tip - 98, width: 4, height: 28, rx: 2, fill: 'rgba(0,0,0,.6)' }),
+    // cartridge: glossy body, gold stripe, two mounting screws
+    svg('rect', { x: P.x - 17, y: tip - 66, width: 34, height: 60, rx: 5, fill: 'url(#tt-cart)', stroke: 'rgba(255,255,255,.12)', 'stroke-width': 1 }),
+    svg('rect', { x: P.x - 17, y: tip - 18, width: 34, height: 7, fill: '#c9a35a' }),
+    svg('circle', { cx: P.x - 10, cy: tip - 55, r: 3.4, fill: 'url(#tt-dome)' }),
+    svg('circle', { cx: P.x + 10, cy: tip - 55, r: 3.4, fill: 'url(#tt-dome)' }),
+    svg('path', { d: `M${P.x - 12} ${tip - 55} h4 M${P.x + 8} ${tip - 55} h4`, stroke: 'rgba(0,0,0,.6)', 'stroke-width': 1 }),
+    // cantilever and the diamond at its tip — exactly where the needle meets the groove
+    svg('rect', { x: P.x - 4, y: tip - 8, width: 8, height: 4, rx: 1.5, fill: '#1a1a1a' }),
+    svg('path', { d: `M${P.x} ${tip - 5} L${P.x} ${tip}`, stroke: '#d9b66c', 'stroke-width': 1.6, 'stroke-linecap': 'round' }),
+    svg('circle', { cx: P.x, cy: tip, r: 2.2, fill: '#ffffff', opacity: '.9' }),
   );
   arm.append(head);
   const grab = svg('circle', { class: 'arm-grab', cx: P.x, cy: tip - 60, r: 95, fill: 'transparent' });
