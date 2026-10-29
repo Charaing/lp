@@ -3,7 +3,9 @@
 // Behaviour lives in deck-core.js; this file draws it and turns input into calls on the core.
 import { PLINTH, PIVOT, ARM_LENGTH, clampAngle } from './arm.js';
 import { loadCover, designFor, renderVinyl, coverPalette } from './vinyl.js';
-import { deckColors, rgbToHsl, hexToRgb } from './palette.js';
+import { rgbToHsl, hexToRgb } from './palette.js';
+
+const DECK_BG = '#9ba7ba';
 import { createDeckCore, bindDeckKeys, fmt } from './deck-core.js';
 import { defaultLook, mergeLook, normalizeLook, lookDiff, albumJsonSnippet, grooveFor, SIZE_FACTOR, INSCRIBED } from './look.js';
 import { createLookStore } from './look-store.js';
@@ -27,7 +29,8 @@ function svg(tag, attrs = {}) {
   return n;
 }
 
-// The arm is drawn pointing straight down (90°) from the pivot and rotated into place.
+// The arm is drawn pointing straight down (90°) from the pivot and rotated into place:
+// a soft clear base, a black pivot block, a thin metal tube and a black headshell.
 function buildArm() {
   const root = svg('svg', { class: 'tt-arm', viewBox: `0 0 ${PLINTH.w} ${PLINTH.h}` });
   const P = PIVOT, tip = P.y + ARM_LENGTH;
@@ -39,114 +42,37 @@ function buildArm() {
       <radialGradient id="tt-dome" cx=".38" cy=".32" r=".75">
         <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#c3c6c5"/><stop offset="1" stop-color="#6f7372"/>
       </radialGradient>
-      <linearGradient id="tt-shell" x1="0" x2="1">
-        <stop offset="0" stop-color="#0d0d0d"/><stop offset=".5" stop-color="#2a2a2a"/><stop offset="1" stop-color="#0d0d0d"/>
-      </linearGradient>
-      <radialGradient id="tt-base" cx=".42" cy=".38" r=".7">
-        <stop offset="0" stop-color="#3a3a3a"/><stop offset=".7" stop-color="#1e1e1e"/><stop offset="1" stop-color="#141414"/>
-      </radialGradient>
-      <linearGradient id="tt-cyl" x1="0" x2="1">
-        <stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset=".22" stop-color="#000" stop-opacity="0"/>
-        <stop offset=".32" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
-        <stop offset=".8" stop-color="#000" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity=".55"/>
-      </linearGradient>
-      <linearGradient id="tt-cyl-v" href="#tt-cyl" x1="0" y1="0" x2="0" y2="1"/>
-      <linearGradient id="tt-cart" x1="0" x2="1">
-        <stop offset="0" stop-color="#050505"/><stop offset=".3" stop-color="#3a3a3a"/><stop offset=".45" stop-color="#151515"/><stop offset="1" stop-color="#050505"/>
+      <linearGradient id="tt-block" x1="0" x2="1">
+        <stop offset="0" stop-color="#121214"/><stop offset=".3" stop-color="#2e2e31"/><stop offset=".55" stop-color="#1c1c1e"/><stop offset="1" stop-color="#0c0c0d"/>
       </linearGradient>
       <filter id="tt-arm-shadow" x="-30%" y="-10%" width="160%" height="130%">
-        <feDropShadow id="tt-arm-shadow-offset" dx="14" dy="16" stdDeviation="7" flood-color="#000" flood-opacity=".32"/>
+        <feDropShadow id="tt-arm-shadow-offset" dx="14" dy="16" stdDeviation="7" flood-color="#1b2433" flood-opacity=".35"/>
       </filter>
     </defs>`;
 
-  // the base the arm turns on, set into the body
-  root.append(
-    svg('circle', { cx: P.x, cy: P.y, r: 92, fill: 'rgba(0,0,0,.4)' }),
-    svg('circle', { cx: P.x, cy: P.y, r: 86, fill: 'url(#tt-base)', stroke: 'rgba(255,255,255,.1)', 'stroke-width': 1.5 }),
-    svg('circle', { cx: P.x, cy: P.y, r: 60, fill: 'none', stroke: 'rgba(0,0,0,.55)', 'stroke-width': 3 }),
-    svg('circle', { cx: P.x, cy: P.y, r: 57.5, fill: 'none', stroke: 'rgba(255,255,255,.07)', 'stroke-width': 1.5 }),
-    ...[200, 320, 80].map((deg) => {
-      const a = (deg * Math.PI) / 180;
-      return svg('circle', { cx: P.x + Math.cos(a) * 73, cy: P.y + Math.sin(a) * 73, r: 3.5, fill: '#4a4a4a', stroke: 'rgba(0,0,0,.6)', 'stroke-width': 1 });
-    }),
-  );
-  // anti-skate dial with its scale, and the cue lever
-  const dial = svg('g', { transform: `translate(${P.x + 80} ${P.y + 150})` });
-  dial.append(
-    svg('circle', { r: 30, fill: 'rgba(0,0,0,.28)' }),
-    svg('circle', { r: 24, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.35)', 'stroke-width': 2 }),
-    svg('rect', { x: -2, y: -22, width: 4, height: 12, rx: 2, fill: '#2a2a2a' }),
-  );
-  for (let i = -4; i <= 4; i++) {
-    dial.append(svg('rect', { x: -1, y: -38, width: 2, height: i % 2 ? 5 : 8, fill: 'rgba(255,255,255,.35)', transform: `rotate(${i * 18})` }));
-  }
-  const cue = svg('g', { transform: `translate(${P.x + 80} ${P.y + 320})` });
-  cue.append(
-    svg('rect', { x: -16, y: -40, width: 32, height: 80, rx: 16, fill: 'rgba(0,0,0,.32)' }),
-    svg('rect', { x: -6, y: -32, width: 12, height: 64, rx: 6, fill: '#121212' }),
-    svg('rect', { x: -14, y: -38, width: 28, height: 22, rx: 8, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 1.5 }),
-  );
-  root.append(dial, cue);
-  // the rest the arm parks on, with its clip
-  root.append(
-    svg('rect', { x: P.x - 24, y: P.y + 448, width: 48, height: 38, rx: 12, fill: 'rgba(0,0,0,.3)' }),
-    svg('rect', { x: P.x - 20, y: P.y + 452, width: 40, height: 30, rx: 10, fill: '#1a1a1a' }),
-    svg('path', { d: `M${P.x - 15} ${P.y + 462} q15 -12 30 0`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 4, 'stroke-linecap': 'round' }),
-  );
+  // the clear base plate the arm stands on
+  root.append(svg('rect', { class: 'arm-base', x: P.x - 118, y: P.y - 92, width: 236, height: 330, rx: 118 }));
 
   const arm = svg('g', { class: 'arm', filter: 'url(#tt-arm-shadow)' });
   arm.append(
-    // the stub the counterweight screws onto
-    svg('rect', { x: P.x - 7, y: P.y - 70, width: 14, height: 70, fill: 'url(#tt-tube)' }),
-    svg('rect', { x: P.x - 7, y: P.y - 70, width: 14, height: 70, fill: 'url(#tt-cyl)' }),
-    // counterweight body
-    svg('rect', { x: P.x - 28, y: P.y - 142, width: 56, height: 66, rx: 4, fill: 'url(#tt-tube)' }),
-    // knurled grip at the back: many fine grooves
-    ...Array.from({ length: 9 }, (_, i) => svg('rect', { x: P.x - 28, y: P.y - 140 + i * 2.6, width: 56, height: 1.1, fill: 'rgba(0,0,0,.32)' })),
-    svg('rect', { x: P.x - 28, y: P.y - 142, width: 56, height: 66, rx: 4, fill: 'url(#tt-cyl)', stroke: 'rgba(0,0,0,.35)', 'stroke-width': 1 }),
-    // black gauge ring with its scale
-    svg('rect', { x: P.x - 29, y: P.y - 98, width: 58, height: 13, rx: 2, fill: '#141414' }),
-    ...Array.from({ length: 9 }, (_, i) => svg('rect', { x: P.x - 20 + i * 5, y: P.y - 98, width: 1, height: i % 4 ? 4 : 7, fill: 'rgba(255,255,255,.6)' })),
-    svg('rect', { x: P.x - 29, y: P.y - 98, width: 58, height: 13, rx: 2, fill: 'url(#tt-cyl)' }),
-    // the tube
-    svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 125, rx: 9, fill: 'url(#tt-tube)' }),
-    svg('rect', { x: P.x - 9, y: P.y - 40, width: 18, height: ARM_LENGTH - 125, rx: 9, fill: 'url(#tt-cyl)', opacity: '.6' }),
-    // the bend that gives the headshell its offset angle
-    svg('path', { d: `M${P.x} ${tip - 176} Q${P.x + 3} ${tip - 132} ${P.x + 44} ${tip - 110}`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 18, 'stroke-linecap': 'round' }),
-    svg('path', { d: `M${P.x - 3} ${tip - 176} Q${P.x} ${tip - 136} ${P.x + 40} ${tip - 115}`, fill: 'none', stroke: 'rgba(255,255,255,.45)', 'stroke-width': 3, 'stroke-linecap': 'round' }),
-    svg('rect', { x: P.x - 10, y: tip - 186, width: 20, height: 6, rx: 2, fill: 'rgba(0,0,0,.35)' }),
-    svg('circle', { cx: P.x, cy: P.y, r: 34, fill: '#161616', stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1.5 }),
-    svg('rect', { x: P.x - 46, y: P.y - 11, width: 92, height: 22, rx: 5, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.4)', 'stroke-width': 1.5 }),
-    svg('rect', { x: P.x - 46, y: P.y - 11, width: 92, height: 22, rx: 5, fill: 'url(#tt-cyl-v)' }),
-    svg('circle', { cx: P.x - 46, cy: P.y, r: 8, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.45)', 'stroke-width': 1.5 }),
-    svg('circle', { cx: P.x + 46, cy: P.y, r: 8, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.45)', 'stroke-width': 1.5 }),
-    svg('circle', { cx: P.x, cy: P.y, r: 17, fill: 'url(#tt-dome)', stroke: 'rgba(0,0,0,.4)', 'stroke-width': 1.5 }),
-    svg('circle', { cx: P.x, cy: P.y, r: 5, fill: 'rgba(0,0,0,.35)' }),
+    // the tube, then the block it turns in and the counterweight behind
+    svg('rect', { x: P.x - 7, y: P.y + 40, width: 14, height: ARM_LENGTH - 150, rx: 3, fill: 'url(#tt-tube)' }),
+    svg('rect', { x: P.x - 15, y: P.y + 40, width: 30, height: 88, rx: 5, fill: 'url(#tt-block)' }),
+    svg('rect', { x: P.x - 64, y: P.y - 28, width: 128, height: 82, rx: 10, fill: 'url(#tt-block)' }),
+    svg('rect', { x: P.x - 64, y: P.y - 28, width: 128, height: 6, rx: 3, fill: 'rgba(255,255,255,.12)' }),
+    svg('rect', { x: P.x - 40, y: P.y - 74, width: 80, height: 54, rx: 8, fill: 'url(#tt-block)' }),
+    svg('rect', { x: P.x - 40, y: P.y - 74, width: 80, height: 5, rx: 2.5, fill: 'rgba(255,255,255,.12)' }),
+    // collar where the tube meets the headshell
+    svg('rect', { x: P.x - 15, y: tip - 150, width: 30, height: 60, rx: 5, fill: 'url(#tt-block)' }),
   );
-  // headshell and cartridge, angled like a real offset headshell; the stylus is exactly at the tip
+  // headshell, angled like a real offset headshell; the stylus is exactly at the tip
   const head = svg('g', { transform: `rotate(22 ${P.x} ${tip})` });
   head.append(
-    // collar where the headshell plugs into the arm
-    svg('rect', { x: P.x - 12, y: tip - 134, width: 24, height: 28, rx: 5, fill: 'url(#tt-tube)', stroke: 'rgba(0,0,0,.3)', 'stroke-width': 1.5 }),
-    svg('rect', { x: P.x - 12, y: tip - 124, width: 24, height: 2.5, fill: 'rgba(0,0,0,.35)' }),
-    // finger lift, curving out to the side
-    svg('path', { d: `M${P.x + 22} ${tip - 22} C${P.x + 48} ${tip - 26} ${P.x + 62} ${tip - 44} ${P.x + 70} ${tip - 70}`, fill: 'none', stroke: 'url(#tt-tube)', 'stroke-width': 7, 'stroke-linecap': 'round' }),
-    svg('circle', { cx: P.x + 70, cy: tip - 72, r: 5.5, fill: 'url(#tt-dome)' }),
-    // the headshell plate, tapering toward the front, with a bright chamfer
-    svg('path', { d: `M${P.x - 18} ${tip - 108} L${P.x + 18} ${tip - 108} L${P.x + 27} ${tip + 6} Q${P.x + 27} ${tip + 18} ${P.x + 15} ${tip + 18} L${P.x - 15} ${tip + 18} Q${P.x - 27} ${tip + 18} ${P.x - 27} ${tip + 6} Z`,
-      fill: 'url(#tt-shell)', stroke: 'url(#tt-tube)', 'stroke-width': 2 }),
-    svg('rect', { x: P.x - 13, y: tip - 98, width: 4, height: 28, rx: 2, fill: 'rgba(0,0,0,.6)' }),
-    svg('rect', { x: P.x + 9, y: tip - 98, width: 4, height: 28, rx: 2, fill: 'rgba(0,0,0,.6)' }),
-    // cartridge: glossy body, gold stripe, two mounting screws
-    svg('rect', { x: P.x - 17, y: tip - 66, width: 34, height: 60, rx: 5, fill: 'url(#tt-cart)', stroke: 'rgba(255,255,255,.12)', 'stroke-width': 1 }),
-    svg('rect', { x: P.x - 17, y: tip - 18, width: 34, height: 7, fill: '#c9a35a' }),
-    svg('circle', { cx: P.x - 10, cy: tip - 55, r: 3.4, fill: 'url(#tt-dome)' }),
-    svg('circle', { cx: P.x + 10, cy: tip - 55, r: 3.4, fill: 'url(#tt-dome)' }),
-    svg('path', { d: `M${P.x - 12} ${tip - 55} h4 M${P.x + 8} ${tip - 55} h4`, stroke: 'rgba(0,0,0,.6)', 'stroke-width': 1 }),
-    // cantilever and the diamond at its tip — exactly where the needle meets the groove
-    svg('rect', { x: P.x - 4, y: tip - 8, width: 8, height: 4, rx: 1.5, fill: '#1a1a1a' }),
-    svg('path', { d: `M${P.x} ${tip - 5} L${P.x} ${tip}`, stroke: '#d9b66c', 'stroke-width': 1.6, 'stroke-linecap': 'round' }),
-    svg('circle', { cx: P.x, cy: tip, r: 2.2, fill: '#ffffff', opacity: '.9' }),
+    svg('path', { d: `M${P.x - 22} ${tip - 100} L${P.x + 22} ${tip - 100} L${P.x + 30} ${tip + 4} Q${P.x + 30} ${tip + 14} ${P.x + 20} ${tip + 14} L${P.x - 20} ${tip + 14} Q${P.x - 30} ${tip + 14} ${P.x - 30} ${tip + 4} Z`, fill: 'url(#tt-block)' }),
+    svg('rect', { x: P.x - 22, y: tip - 100, width: 44, height: 5, rx: 2.5, fill: 'rgba(255,255,255,.12)' }),
+    // finger lift: a small pin sticking out to the side
+    svg('rect', { x: P.x + 26, y: tip - 22, width: 46, height: 9, rx: 4.5, fill: '#2a2a2d' }),
+    svg('circle', { cx: P.x, cy: tip, r: 2.5, fill: '#9a9a9f' }),
   );
   arm.append(head);
   const grab = svg('circle', { class: 'arm-grab', cx: P.x, cy: tip - 60, r: 95, fill: 'transparent' });
@@ -160,39 +86,22 @@ const icon = {
   next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
 };
 
-// The deck is drawn flat, seen from straight above, then tilted back in 3D around its front
-// edge so it reads like a real turntable on a table. Pointer input is mapped back through it.
-const TILT_DEG = 30;
-const PERSPECTIVE = 3.2; // × the deck's width
-
 export function createTurntable(root, player, { notify = () => {} } = {}) {
   root.replaceChildren();
   const tt = document.createElement('div');
   tt.className = 'tt';
   tt.innerHTML = `
     <div class="tt-record empty">
-      <div class="tt-platter-well"></div>
-      <div class="tt-platter"></div>
-      <div class="tt-mat"></div>
       <div class="tt-slot">
         <div class="tt-record-shadow"></div>
         <div class="tt-spin"><canvas width="1024" height="1024"></canvas></div>
         <div class="tt-sheen"></div>
       </div>
-      <div class="tt-spindle"></div>
-    </div>
-    <span class="tt-mark" aria-hidden="true"><b>lp</b><span>DIRECT DRIVE</span></span>
-    <div class="tt-lid" aria-hidden="true"></div>
-    <div class="tt-front">
-      <span class="tt-grille" aria-hidden="true"></span>
-      <div class="tt-panel">
-        <span class="tt-jack" aria-hidden="true"></span>
-        <span class="tt-pilot" aria-hidden="true"></span>
-        <div class="tt-knob-wrap"><span class="tt-knob-label" aria-hidden="true">33 · 45</span><button type="button" class="tt-knob speed" aria-label="회전 속도"><span class="knob-cap"></span></button></div>
-        <div class="tt-knob-wrap"><span class="tt-knob-label" aria-hidden="true">VOLUME</span><div class="tt-knob volume-knob" role="slider" tabindex="0" aria-label="음량" aria-valuemin="0" aria-valuemax="100"><span class="knob-cap"></span></div></div>
-      </div>
-      <span class="tt-grille" aria-hidden="true"></span>
-    </div>
+    </div>`;
+  const main = document.createElement('div');
+  main.className = 'deck-main';
+  main.innerHTML = `
+    <div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p></div>
     <div class="tt-controls">
       <button type="button" class="tt-btn play" aria-pressed="false"><span class="key"></span><span class="cap">PLAY</span></button>
       <div class="group">
@@ -200,21 +109,20 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
         <button type="button" class="tt-btn next" aria-label="다음 곡"><span class="key"></span><span class="cap">${icon.next}</span></button>
       </div>
     </div>`;
-  tt.style.setProperty('--tilt', `${TILT_DEG}deg`);
-  tt.style.setProperty('--persp', String(PERSPECTIVE));
+  main.prepend(tt);
   const { root: armLayer, arm, grab, shadow } = buildArm();
   tt.querySelector('.tt-record').after(armLayer);
 
   const side = document.createElement('div');
   side.className = 'deck-side';
-  side.innerHTML = '<div class="nowplaying" aria-live="off"><p class="np-title"></p><p class="np-artist"></p><p class="np-track"></p></div><div class="volume"><button type="button" class="vol-btn" aria-label="음소거"></button><input class="vol-range" type="range" min="0" max="1" step="0.01" aria-label="음량"></div><p class="deck-hint"></p><ol class="tracklist" aria-label="수록곡"></ol>';
-  root.append(tt, side);
+  side.innerHTML = '<p class="np-track"></p><div class="side-row"><div class="tt-speed" role="group" aria-label="회전 속도"><button type="button" data-rpm="33">33</button><button type="button" data-rpm="45">45</button></div><div class="volume"><button type="button" class="vol-btn" aria-label="음소거"></button><input class="vol-range" type="range" min="0" max="1" step="0.01" aria-label="음량"></div></div><p class="deck-hint"></p><ol class="tracklist" aria-label="수록곡"></ol>';
+  root.append(main, side);
 
-  const q = (sel) => tt.querySelector(sel);
-  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas'), platter = q('.tt-platter');
+  const q = (sel) => tt.querySelector(sel) ?? main.querySelector(sel);
+  const record = q('.tt-record'), spin = q('.tt-spin'), canvas = q('canvas');
   const playBtn = q('.tt-btn.play'), playCap = playBtn.querySelector('.cap');
   const hint = side.querySelector('.deck-hint');
-  const npTitle = side.querySelector('.np-title'), npArtist = side.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
+  const npTitle = main.querySelector('.np-title'), npArtist = main.querySelector('.np-artist'), npTrack = side.querySelector('.np-track');
   const trackList = side.querySelector('.tracklist');
   let listIndex = -1;
 
@@ -264,13 +172,11 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
 
   // Everything a look changes besides the record drawing itself.
   function applyLook(c) {
-    const { look, palette } = c;
-    let colors = deckColors(palette);
-    if (look.deck.body !== 'auto') {
-      const l = rgbToHsl(...hexToRgb(look.deck.body))[2];
-      colors = { body: look.deck.body, bg: deckColors([look.deck.body]).bg, ink: l >= 0.52 ? '#1c1a18' : '#ede7dc' };
-    }
-    for (const [k, v] of Object.entries({ '--deck-body': colors.body, '--deck-bg': colors.bg, '--deck-ink': colors.ink })) {
+    const { look } = c;
+    // the whole screen is the deck: a calm blue-grey, or the colour picked in 꾸미기
+    const bg = look.deck.body === 'auto' ? DECK_BG : look.deck.body;
+    const ink = rgbToHsl(...hexToRgb(bg))[2] >= 0.45 ? '#16171a' : '#f2f3f5';
+    for (const [k, v] of Object.entries({ '--deck-body': bg, '--deck-bg': bg, '--deck-ink': ink })) {
       (screen ?? root).style.setProperty(k, v);
     }
     core.setGroove(grooveFor(look));
@@ -340,16 +246,10 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   const s = core.state;
 
   // ---- tonearm dragging ----
-  // A pointer on screen → the same point on the flat (untilted) deck, in its own CSS pixels.
+  // A pointer on screen → the same point on the deck, in the deck's own CSS pixels.
   function toDeck(e) {
-    const w = tt.offsetWidth, h = tt.offsetHeight;
-    const base = tt.offsetParent ? tt.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
-    const ox = base.left + tt.offsetLeft + w / 2, oy = base.top + tt.offsetTop + h; // the front edge doesn't move
-    const P = w * PERSPECTIVE, t = (TILT_DEG * Math.PI) / 180;
-    const dx = e.clientX - ox, dy = e.clientY - oy;
-    const Y = (dy * P) / (Math.cos(t) * P + dy * Math.sin(t));
-    const k = P / (P - Y * Math.sin(t));
-    return { x: dx / k + w / 2, y: Y + h };
+    const r = tt.getBoundingClientRect(), k = tt.offsetWidth / r.width;
+    return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
   }
   function pointerAngle(e) {
     const p = toDeck(e);
@@ -381,30 +281,11 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     engine.setVolume(volume);
     volRange.value = String(volume);
     volRange.style.setProperty('--v', `${volume * 100}%`);
-    volKnob.style.setProperty('--turn', `${-135 + volume * 270}deg`);
-    volKnob.setAttribute('aria-valuenow', String(Math.round(volume * 100)));
     volBtn.innerHTML = volume === 0 ? ICON_OFF : ICON_ON;
     volBtn.setAttribute('aria-label', volume === 0 ? '소리 켜기' : '음소거');
     if (save) try { localStorage.setItem('lp:volume', String(volume)); } catch { /* storage blocked */ }
   }
   volRange.addEventListener('input', () => setVolume(Number(volRange.value)));
-  // the VOLUME knob on the front: drag up/down, scroll, or arrow keys
-  const volKnob = q('.volume-knob');
-  let knobDrag = null;
-  volKnob.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    try { volKnob.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    knobDrag = { y: e.clientY, v: volume };
-  });
-  volKnob.addEventListener('pointermove', (e) => { if (knobDrag) setVolume(knobDrag.v + (knobDrag.y - e.clientY) / 150); });
-  const endKnob = () => { knobDrag = null; };
-  volKnob.addEventListener('pointerup', endKnob);
-  volKnob.addEventListener('pointercancel', endKnob);
-  volKnob.addEventListener('wheel', (e) => { e.preventDefault(); setVolume(volume - Math.sign(e.deltaY) * 0.05); }, { passive: false });
-  volKnob.addEventListener('keydown', (e) => {
-    const d = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05 }[e.key];
-    if (d) { e.preventDefault(); e.stopPropagation(); setVolume(volume + d); }
-  });
   volBtn.addEventListener('click', () => {
     if (volume > 0) { beforeMute = volume; setVolume(0); } else setVolume(beforeMute || 1);
   });
@@ -532,8 +413,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
   playBtn.addEventListener('click', () => { engine.wake(); core.togglePlay(); });
   q('.tt-btn.prev').addEventListener('click', () => core.skip(-1));
   q('.tt-btn.next').addEventListener('click', () => core.skip(1));
-  const speedKnob = q('.tt-knob.speed');
-  speedKnob.addEventListener('click', () => core.setRpm(s.rpm === 33 ? 45 : 33));
+  for (const b of side.querySelectorAll('.tt-speed button')) b.addEventListener('click', () => core.setRpm(Number(b.dataset.rpm)));
   let active = true;
   bindDeckKeys(core, () => active);
 
@@ -549,7 +429,6 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     if (playing !== lastPlaying) { lastPlaying = playing; for (const fn of playingListeners) fn(playing); }
     if (active) {
       spin.style.transform = `rotate(${s.rotation}deg)`;
-      platter.style.transform = spin.style.transform;
       arm.setAttribute('transform', `rotate(${s.angle - 90} ${PIVOT.x} ${PIVOT.y})`);
       const lift = Math.max(0, s.lift);
       shadow.setAttribute('dx', 6 + 14 * lift);
@@ -569,8 +448,7 @@ export function createTurntable(root, player, { notify = () => {} } = {}) {
     playBtn.setAttribute('aria-pressed', String(playing));
     playBtn.setAttribute('aria-label', playing ? '정지' : '재생');
     tt.classList.toggle('motor-on', s.motorOn);
-    speedKnob.style.setProperty('--turn', s.rpm === 45 ? '40deg' : '-40deg');
-    speedKnob.setAttribute('aria-label', `회전 속도 ${s.rpm} — 눌러서 바꾸기`);
+    for (const b of side.querySelectorAll('.tt-speed button')) b.setAttribute('aria-pressed', String(Number(b.dataset.rpm) === s.rpm));
     record.classList.toggle('empty', s.phase !== 'loaded');
     const i = core.info();
     npTitle.textContent = i.title;

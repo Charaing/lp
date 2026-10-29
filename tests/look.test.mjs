@@ -34,8 +34,8 @@ test('grooveFor: a 12-inch round record keeps the old groove', () => {
   assert.ok(Math.abs(g.outer - 0.96) < 1e-9 && Math.abs(g.inner - 0.40) < 1e-9);
 });
 
-test('defaultLook: black unless a colour is given; cover label only with a cover', () => {
-  assert.equal(defaultLook({}, ['#ff0000'], true).vinyl.style, 'black');
+test('defaultLook: clear coloured vinyl unless a colour is given; cover label only with a cover', () => {
+  assert.equal(defaultLook({}, ['#ff0000'], true).vinyl.style, 'translucent');
   assert.equal(defaultLook({ vinyl: { color: '#3a7bd5' } }, [], false).vinyl.style, 'solid');
   assert.equal(defaultLook({}, [], false).label.mode, 'text');
   assert.equal(defaultLook({}, ['#ff0000', '#00ff00'], true).vinyl.accent, '#00ff00');

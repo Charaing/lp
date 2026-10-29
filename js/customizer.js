@@ -164,7 +164,7 @@ export function createCustomizer(root, on) {
       colors(section('바이닐 색'), v.color, (color) => update({ vinyl: { color, style: v.style === 'black' ? 'solid' : v.style } }));
       colors(section('무늬 보조색'), v.accent, (a) => update({ vinyl: { accent: a } }));
     } else if (tab === 'shape') {
-      choice(section('모양'), SHAPES.map((s) => ({ value: s, name: SHAPE_NAMES[s], draw: (c) => renderShapeIcon(c, s, '#e8e1d4') })), v.shape,
+      choice(section('모양'), SHAPES.map((s) => ({ value: s, name: SHAPE_NAMES[s], draw: (c) => renderShapeIcon(c, s, '#1c1d20') })), v.shape,
         (shape) => update({ vinyl: { shape } }), 'cz-shapes');
       choice(section('크기'), [7, 10, 12].map((n) => ({ value: n, name: `${n}인치` })), v.size, (size) => update({ vinyl: { size } }), 'cz-seg');
     } else if (tab === 'label') {

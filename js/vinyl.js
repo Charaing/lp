@@ -208,7 +208,8 @@ function pressing(ctx, d, R, cover, rand) {
   } else {
     ctx.fillStyle = d.base;
   }
-  if (style === 'translucent') ctx.globalAlpha = 0.72;
+  // clear vinyl: a light tint of the colour that lets what's under it show through
+  if (style === 'translucent') { ctx.globalAlpha = 0.6; ctx.fillStyle = shade(d.base, 0.18); }
   ctx.fillRect(-R * 1.1, -R * 1.1, R * 2.2, R * 2.2);
   if (style === 'translucent') {
     const g = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
