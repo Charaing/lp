@@ -96,8 +96,7 @@ export function mergeLook(...layers) {
 
 // The record before anyone tweaked it: album.json (old and new fields) over sensible defaults.
 export function defaultLook(album, palette = [], hasCover = false) {
-  // clear coloured vinyl unless album.json gives a colour of its own
-  const base = { vinyl: { style: album?.vinyl?.color ? undefined : 'translucent', accent: palette[1] }, label: { mode: hasCover ? 'cover' : 'text' } };
+  const base = { vinyl: { accent: palette[1] }, label: { mode: hasCover ? 'cover' : 'text' } };
   const legacy = { vinyl: album?.vinyl, label: album?.label };
   return mergeLook(base, legacy, album?.look);
 }
